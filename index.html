@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#111827">
+  <meta name="description" content="Offlinefähiger X01 Dart-Zähler mit persönlicher Statistik.">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <link rel="stylesheet" href="styles.css">
+  <title>Oche – Dart X01</title>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="brand-mark">●</span><div><strong>OCHE</strong><small>DART X01</small></div></div>
+    <div class="status"><span class="offline-dot"></span><span id="connectionLabel">Offline bereit</span></div>
+  </header>
+
+  <main>
+    <section id="gameView" class="view active">
+      <div class="page-heading"><div><p class="eyebrow">MATCH CENTER</p><h1>Spiel zählen</h1></div><button class="icon-btn" id="newGameBtn" aria-label="Neues Spiel">＋</button></div>
+      <div class="setup-card" id="setupCard">
+        <div class="field-row">
+          <label>Startscore<select id="startScore"><option>501</option><option>301</option><option>701</option><option>901</option><option>1001</option></select></label>
+          <label>Spielmodus<select id="outMode"><option value="double">Double Out</option><option value="straight">Straight Out</option><option value="master">Master Out</option></select></label>
+        </div>
+        <button class="primary-btn full" id="startGameBtn">Spiel starten <span>→</span></button>
+      </div>
+
+      <div id="activeGame" class="hidden">
+        <div class="score-card">
+          <div class="score-meta"><span class="live-badge">● LIVE</span><span id="gameModeLabel">501 · Double Out</span><span id="legLabel">Leg 1</span></div>
+          <div class="score-number" id="remainingScore">501</div>
+          <div class="score-caption">RESTPUNKTE</div>
+          <div class="score-stats">
+            <div><strong id="currentAverage">0.0</strong><span>3-DART-AVG</span></div>
+            <div><strong id="dartsThrown">0</strong><span>DARTS</span></div>
+            <div><strong id="bestVisit">–</strong><span>BESTE AUFNAHME</span></div>
+          </div>
+        </div>
+        <div class="turn-head"><div><p class="eyebrow">AKTUELLE AUFNAHME</p><h2 id="turnScore">0 <small>/ 180</small></h2></div><span class="dart-count" id="dartCount">0 / 3 DARTS</span></div>
+        <div class="dart-entry">
+          <div class="dart-tabs" id="dartTabs"><button class="selected">DART 1</button><button>DART 2</button><button>DART 3</button></div>
+          <div class="multiplier-row" id="multiplierRow"><button class="mult active" data-mult="1">S</button><button class="mult" data-mult="2">D</button><button class="mult" data-mult="3">T</button></div>
+          <div class="number-grid" id="numberGrid"></div>
+          <div class="special-row"><button data-special="25">25 · SB</button><button data-special="50">50 · DB</button><button data-special="0">MISS</button></div>
+          <p class="entry-hint" id="entryHint">Multiplikator wählen, dann Trefferfeld antippen.</p>
+        </div>
+        <div class="turn-actions"><button class="secondary-btn" id="undoBtn">↶ Rückgängig</button><button class="primary-btn" id="finishVisitBtn" disabled>Aufnahme buchen <span>→</span></button></div>
+        <div class="last-visits"><div class="section-title"><h3>Letzte Aufnahmen</h3><span id="visitCount">0</span></div><div id="visitList" class="visit-list"><p class="empty">Noch keine Aufnahmen.</p></div></div>
+        <button class="text-danger" id="abandonBtn">Spiel abbrechen</button>
+      </div>
+    </section>
+
+    <section id="profileView" class="view">
+      <div class="page-heading"><div><p class="eyebrow">DEINE LEISTUNG</p><h1>Profil</h1></div><button class="icon-btn" id="exportBtn" aria-label="Daten exportieren">⇩</button></div>
+      <div class="profile-intro"><div class="avatar">🎯</div><div><h2>Dein Dart-Profil</h2><p>Deine persönliche Entwicklung auf einen Blick.</p></div></div>
+      <div class="stat-grid">
+        <div class="stat-tile"><span>SPIELE</span><strong id="totalGames">0</strong></div>
+        <div class="stat-tile"><span>3-DART-AVG</span><strong id="overallAvg">0.0</strong></div>
+        <div class="stat-tile"><span>BESTE AUFNAHME</span><strong id="overallBest">–</strong></div>
+        <div class="stat-tile"><span>CHECKOUTS</span><strong id="checkoutCount">0</strong></div>
+      </div>
+      <div class="panel"><div class="section-title"><h3>Average-Verlauf</h3><select id="periodSelect" class="small-select"><option value="all">Gesamt</option><option value="30">30 Tage</option><option value="7">7 Tage</option></select></div><div class="chart-wrap"><canvas id="averageChart" height="190"></canvas><p id="chartEmpty" class="empty">Spiele ein paar Matches, um deinen Verlauf zu sehen.</p></div></div>
+      <div class="panel"><div class="section-title"><h3>Getroffene Felder</h3><span class="muted">Alle Darts</span></div><div id="hitStats" class="hit-stats"><p class="empty">Noch keine Treffer erfasst.</p></div></div>
+      <div class="panel"><div class="section-title"><h3>Spielhistorie</h3><span id="historyCount" class="muted">0 Spiele</span></div><div id="historyList"><p class="empty">Abgeschlossene Spiele erscheinen hier.</p></div></div>
+      <div class="data-actions"><button class="secondary-btn" id="importBtn">Backup importieren</button><button class="text-danger" id="clearDataBtn">Alle Daten löschen</button><input type="file" id="importFile" accept="application/json" hidden></div>
+      <p class="privacy-note">Deine Daten bleiben auf diesem Gerät. Exportiere regelmäßig ein Backup, wenn du sie behalten möchtest.</p>
+    </section>
+  </main>
+
+  <nav class="bottom-nav"><button class="nav-item active" data-view="gameView"><span>◎</span>Spielen</button><button class="nav-item" data-view="profileView"><span>▥</span>Profil</button></nav>
+  <div id="toast" class="toast" role="status"></div>
+  <script src="app.js"></script>
+</body>
+</html>
