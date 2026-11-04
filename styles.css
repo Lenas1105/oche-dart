@@ -246,3 +246,85 @@ html,body,main,button,a,select,input,.number-grid,.number-btn,.keypad,.dart-slot
 .camera-fine-adjust>span{display:block;color:#a5d8b6;font-size:9px;font-weight:850;letter-spacing:1px;text-align:center;margin-bottom:7px}
 .camera-nudge-buttons{display:grid;grid-template-columns:repeat(4,1fr);gap:7px}
 .camera-nudge-buttons button{min-height:41px;border-radius:9px;background:#2b473b;border:1px solid #567c61;color:#d6fa45;font-size:23px;font-weight:900;touch-action:manipulation}
+
+/* OCHE 7 · kompakte Match-Eingabe auf Smartphones */
+#gameView.is-playing .page-title{display:none}
+#gameView.is-playing .match-overview{padding:7px 12px;margin-bottom:7px;border-radius:12px}
+#gameView.is-playing .match-overview-bottom{margin-top:3px}
+#gameView.is-playing .match-overview-bottom .eyebrow{display:none}
+#gameView.is-playing .match-overview-bottom strong{font-size:12px}
+#gameView.is-playing .match-progress-copy{font-size:10px}
+#gameView.is-playing .match-overview-top .live-pill{font-size:9px}
+#gameView.is-playing .round-indicator{font-size:9px;padding:3px 9px}
+#gameView.is-playing .player-header{display:none}
+#gameView.is-playing .player-cards{gap:6px;margin-bottom:6px}
+#gameView.is-playing .player-card{padding:8px 9px;border-radius:12px}
+#gameView.is-playing .player-card .player-name{font-size:12px}
+#gameView.is-playing .player-card .player-role{font-size:8px}
+#gameView.is-playing .player-card .player-score{font-size:clamp(27px,8vw,37px);margin-top:2px;line-height:1}
+#gameView.is-playing .player-card .player-sub{font-size:9px;margin-top:1px}
+#gameView.is-playing .player-card .player-tally{margin-top:5px;padding-top:5px}
+#gameView.is-playing .player-card .player-tally strong,#gameView.is-playing .player-card .player-tally span{font-size:9px}
+#gameView.is-playing .turn-banner{display:none}
+#gameView.is-playing .player-swipe-hint{margin:0 0 4px}
+#gameView.is-playing .score-hero{padding:8px 13px;border-radius:13px;margin-bottom:8px}
+#gameView.is-playing .score-center{padding:0;display:flex;align-items:baseline;justify-content:center;gap:12px;flex-wrap:wrap}
+#gameView.is-playing .big-score{font-size:clamp(49px,13vw,75px);letter-spacing:-3px;line-height:1}
+#gameView.is-playing .score-label{font-size:9px;letter-spacing:1px}
+#gameView.is-playing .score-subline{flex-basis:100%;font-size:10px;margin-top:-4px}
+#gameView.is-playing .hero-meta{display:none}
+#gameView.is-playing .score-progress{display:none}
+#gameView.is-playing .score-kpis{display:none}
+#gameView.is-playing .round-header{margin:7px 2px 5px}
+#gameView.is-playing .round-header h2{font-size:13px}
+#gameView.is-playing .round-header .eyebrow{display:none}
+#gameView.is-playing .dart-slots{gap:5px;margin-bottom:7px}
+#gameView.is-playing .dart-slot{min-height:39px;flex-direction:row;gap:7px}
+#gameView.is-playing .dart-slot small{font-size:9px}
+#gameView.is-playing .dart-slot strong{font-size:15px}
+#gameView.is-playing .keypad{padding:9px;border-radius:14px}
+#gameView.is-playing .mult-row{margin-bottom:7px;gap:5px}
+#gameView.is-playing .mult-btn{min-height:39px}
+#gameView.is-playing .number-grid{gap:6px}
+#gameView.is-playing .number-btn{min-height:46px;border-radius:9px}
+#gameView.is-playing .special-grid{margin-top:7px;gap:6px}
+#gameView.is-playing .special-btn{min-height:40px}
+#gameView.is-playing .keypad-hint{margin-top:6px;font-size:9px}
+#gameView.is-playing .advisor{margin:5px 0 8px;padding:9px 12px;border-radius:12px}
+#gameView.is-playing .advisor-top .eyebrow{font-size:9px}
+#gameView.is-playing .advice-main{margin-top:4px}
+#gameView.is-playing .advice-main h3{font-size:13px}
+#gameView.is-playing .advice-main p{display:none}
+#gameView.is-playing .advice-steps{margin-top:5px;gap:4px}
+#gameView.is-playing .advice-step{padding:4px 7px;min-width:47px}
+#gameView.is-playing .advice-step small{font-size:8px}
+#gameView.is-playing .advice-step strong{font-size:13px}
+#gameView.is-playing .advisor-icon{display:none}
+@media (max-width:390px){
+ .topbar{height:54px}.brand-icon{height:32px;width:32px;font-size:22px}.brand strong{font-size:16px}
+ .main{padding:9px 12px 32px}
+ .connection{display:none}
+ #gameView.is-playing .player-card .player-role{font-size:7px}
+ #gameView.is-playing .number-btn{min-height:43px;font-size:18px}
+}
+@media (max-height:750px) and (max-width:599px){
+ #gameView.is-playing .player-card .player-tally{display:none}
+ #gameView.is-playing .match-overview{margin-bottom:5px}
+ #gameView.is-playing .number-btn{min-height:40px}
+ #gameView.is-playing .special-btn{min-height:36px}
+ #gameView.is-playing .score-hero{padding:6px 9px}
+ #gameView.is-playing .dart-slot{min-height:34px}
+}
+
+#gameView.is-playing .player-cards.solo{display:none}
+#gameView.is-playing .turn-tools{display:flex;align-items:center;gap:9px}
+#gameView.is-playing .quick-undo{width:33px;height:29px;display:grid;place-items:center;background:#263751;border:1px solid #40536b;color:#d6fa45;border-radius:8px;font-size:20px;padding:0}
+#gameView.is-playing .quick-undo:disabled{opacity:.35}
+
+/* OCHE 7.1: iPhone-Heatmap stabil und deutlich sichtbar */
+.heatmap-panel{overflow:visible}
+.heatmap-board{width:100%;max-width:460px;min-height:0;aspect-ratio:1/1;margin:12px auto 7px;overflow:visible}
+.heatmap-board svg{width:100%;height:100%;max-width:100%;display:block;overflow:visible;aspect-ratio:1/1}
+.heatmap-board svg .heat-segment{stroke:#07131f;stroke-width:1.4;vector-effect:non-scaling-stroke}
+.heatmap-legend{flex-wrap:wrap;line-height:1.4}
+@media(max-width:390px){.heatmap-panel{padding:12px}.heatmap-board{margin:11px auto 7px}}
