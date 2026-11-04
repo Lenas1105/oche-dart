@@ -1,18 +1,11 @@
-# OCHE 7.1 – Bugfix Matchstart + Heatmap
+# OCHE Version 7.2 – iPhone-Statusleisten-Fix
 
-Entwickelt von Lenas Sum.
+**Änderung:** Die obere Navigationsleiste berücksichtigt jetzt den iPhone-Sicherheitsabstand (`env(safe-area-inset-top)`) im Standalone-/Home-Bildschirm-Modus. Uhrzeit, Netz und Akkustand überlappen nicht mehr das OCHE-Logo oder den Versionshinweis.
 
-## Behobene Fehler
-
-- Neues Match aus der sichtbaren Startmaske kann ohne fehlerhafte Alt-Match-Rueckfrage gestartet werden.
-- Wenn intern noch ein altes Match als aktiv markiert ist, wird dieses beim Start aus der Startmaske beendet; bereits abgeschlossene Legs bleiben erhalten.
-- Wenn ein laufendes Match sichtbar ist, bleibt die Sicherheitsabfrage zum Verwerfen des laufenden Legs bestehen.
-- Heatmap auf kleinen Smartphones wieder quadratisch und besser lesbar, mit sichtbaren Segment-Ringen.
-- Heatmap zaehlt auch laufende eigene Legs und ein laufendes Training, ohne Gastdarts einzubeziehen.
-- Neue Cache-Version und versionierte Skript-/CSS-URLs reduzieren Probleme durch gemischte alte und neue Dateien.
+Die Spiellogik, lokale Datenhaltung, Heatmap und alle anderen Funktionen entsprechen Version 7.1.
 
 ## Update
+Vorher im Profil Backup exportieren. Alle Dateien in das Wurzelverzeichnis des GitHub-Pages-Repositories hochladen und bestehende Dateien ersetzen. Auf dem iPhone die App danach mit Internetverbindung vollständig schließen und neu starten. Version oben rechts: v7.2.
 
-Vorher im Profil Backup exportieren. Alle Dateien im ZIP in das Hauptverzeichnis deines bestehenden GitHub-Repositories hochladen und committen. Installierte PWA nach Online-Aktualisierung schliessen und neu starten. App nicht deinstallieren, keine Websitedaten loeschen.
-
-Die bisherigen Daten bleiben im lokalen Schluessel `oche-dart-data-v4` erhalten.
+## Technischer Hinweis
+Die Seite verwendet `viewport-fit=cover` und eine durchscheinende iOS-Statusleiste. Deshalb muss die Headerhöhe den zusätzlichen Safe-Area-Abstand aufnehmen; dieser Patch ergänzt ihn ausschließlich oben.

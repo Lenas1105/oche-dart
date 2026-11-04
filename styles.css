@@ -328,3 +328,16 @@ html,body,main,button,a,select,input,.number-grid,.number-btn,.keypad,.dart-slot
 .heatmap-board svg .heat-segment{stroke:#07131f;stroke-width:1.4;vector-effect:non-scaling-stroke}
 .heatmap-legend{flex-wrap:wrap;line-height:1.4}
 @media(max-width:390px){.heatmap-panel{padding:12px}.heatmap-board{margin:11px auto 7px}}
+
+/* OCHE 7.2: iOS standalone safe area. Prevent status bar overlap. */
+.topbar{
+  box-sizing:border-box;
+  height:calc(70px + env(safe-area-inset-top, 0px));
+  padding-top:env(safe-area-inset-top, 0px);
+  padding-left:max(18px,calc((100vw - 720px)/2),env(safe-area-inset-left, 0px));
+  padding-right:max(18px,calc((100vw - 720px)/2),env(safe-area-inset-right, 0px));
+}
+.topbar .brand,.topbar .topbar-right{min-width:0}
+@media (max-width:390px){
+  .topbar{height:calc(54px + env(safe-area-inset-top, 0px));}
+}

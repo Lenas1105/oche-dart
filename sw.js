@@ -1,5 +1,5 @@
-const CACHE_NAME='oche-dart-offline-v7-1-20261104';
-const CORE=['./','./index.html','./styles.css?v=7.1','./app.js?v=7.1','./tap.wav','./manifest.webmanifest',
+const CACHE_NAME='oche-dart-offline-v7-2-20261104';
+const CORE=['./','./index.html','./styles.css?v=7.2','./app.js?v=7.2','./tap.wav','./manifest.webmanifest',
             './icon.svg','./apple-touch-icon.png','./icon-192.png','./icon-512.png'];
 self.addEventListener('install',event=>{
  event.waitUntil(caches.open(CACHE_NAME).then(cache=>cache.addAll(CORE)).then(()=>self.skipWaiting()));
