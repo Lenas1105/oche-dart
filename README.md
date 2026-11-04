@@ -1,11 +1,11 @@
-# OCHE Version 7.2 – iPhone-Statusleisten-Fix
+# OCHE Version 7.3 – Trainingsauswertung nach Ziel
 
-**Änderung:** Die obere Navigationsleiste berücksichtigt jetzt den iPhone-Sicherheitsabstand (`env(safe-area-inset-top)`) im Standalone-/Home-Bildschirm-Modus. Uhrzeit, Netz und Akkustand überlappen nicht mehr das OCHE-Logo oder den Versionshinweis.
+Neu im Profil: eigene Trainingsauswertung mit Auswahl nach S20, S19, D20, T20 usw. Alle gespeicherten Trainingseinheiten werden nach Ziel gruppiert und mit Einheiten, Darts, exakt getroffenen Zielsegmenten und Trefferquote angezeigt. Zusätzlich gibt es Listen der letzten Einheiten pro Ziel.
 
-Die Spiellogik, lokale Datenhaltung, Heatmap und alle anderen Funktionen entsprechen Version 7.1.
+In der Dartboard-Heatmap und Trefferverteilung kannst du nach Auswahl der Datenquelle „Training“ das Trainingsziel filtern. Auch ältere Einheiten werden anhand ihres bereits gespeicherten `target` automatisch berücksichtigt. Gaststatistiken bleiben ausgeschlossen.
 
-## Update
-Vorher im Profil Backup exportieren. Alle Dateien in das Wurzelverzeichnis des GitHub-Pages-Repositories hochladen und bestehende Dateien ersetzen. Auf dem iPhone die App danach mit Internetverbindung vollständig schließen und neu starten. Version oben rechts: v7.2.
+Technik: rein lokal, keine zusätzliche Bibliothek oder Cloud, bestehender localStorage-Schlüssel unverändert.
 
-## Technischer Hinweis
-Die Seite verwendet `viewport-fit=cover` und eine durchscheinende iOS-Statusleiste. Deshalb muss die Headerhöhe den zusätzlichen Safe-Area-Abstand aufnehmen; dieser Patch ergänzt ihn ausschließlich oben.
+## Installation
+
+Vorher Profil-Backup exportieren. Alle Dateien aus der ZIP direkt in die Wurzel des GitHub-Repositories hochladen, Änderungen committen. Auf erfolgreiche GitHub-Pages-Veröffentlichung warten; Versionskennung oben rechts: v7.3.

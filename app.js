@@ -799,8 +799,55 @@ function statSet(){
   first9:first9Count?first9Points/first9Count*3:0,
   first9Count,attempts,wins};
 }
+// Aggregation nach dem ausgewaehlten Trainingsziel: nur abgeschlossene Einheiten.
+function trainingsForTarget(target){
+ return db.trainings.filter(t=>target==='all'||t.target===target);
+}
+function trainingTargetOptions(){
+ const opts=[...new Set(db.trainings.map(t=>t.target))];
+ if(activeTraining)opts.push(activeTraining.target);
+ return [...new Set(opts)].sort((a,b)=>TARGETS.indexOf(a)-TARGETS.indexOf(b));
+}
+function refreshTrainingTargetOptions(){
+ const options=trainingTargetOptions();
+ for(const id of ['trainingStatsTarget','heatmapTrainingTarget','hitTrainingTarget']){
+  const select=$('#'+id);const selected=select.value;
+  const first=id==='trainingStatsTarget'?'Alle Trainings zusammen':'Alle Trainingsziele';
+  select.innerHTML=`<option value="all">${first}</option>`+options.map(s=>`<option value="${s}">${escapeHTML(fieldName(s))} (${s})</option>`).join('');
+  select.value=selected==='all'||options.includes(selected)?selected:'all';
+ }
+}
+function renderTrainingTargetStats(){
+ const target=$('#trainingStatsTarget').value;
+ const sessions=trainingsForTarget(target);
+ const darts=sessions.flatMap(t=>t.darts);
+ const hits=sessions.reduce((n,t)=>n+t.darts.filter(d=>d.segment===t.target).length,0);
+ const rate=darts.length?hits/darts.length*100:0;
+ const goals=[...new Set(sessions.map(t=>t.target))].length;
+ $('#trainingTargetSummary').innerHTML=[
+  ['TRAININGS',sessions.length],['DARTS',darts.length],['TREFFER',hits],['TREFFERQUOTE',numberFormat(rate)+' %']
+ ].map(([label,value])=>`<div class="training-summary-stat"><small>${label}</small><strong>${value}</strong></div>`).join('');
+ const progress=$('#trainingTargetProgress');progress.hidden=!darts.length;
+ if(darts.length)progress.innerHTML=`<span style="width:${rate}%"></span>`;
+ const recent=[...sessions].sort((a,b)=>new Date(b.completedAt)-new Date(a.completedAt)).slice(0,10);
+ $('#trainingTargetSessions').innerHTML=recent.length?`<p class="eyebrow subtle training-sessions-caption">LETZTE EINHEITEN${target==='all'?' · '+goals+' TRAININGSZIELE':''}</p>`+recent.map(t=>{
+   const matched=t.darts.filter(d=>d.segment===t.target).length;
+   const percent=t.darts.length?numberFormat(matched/t.darts.length*100):'0,0';
+   return `<div class="training-session-row"><div><strong>${escapeHTML(t.target)}</strong><small>${escapeHTML(dayLabel(localDay(t.completedAt)||'2000-01-01'))} · ${t.darts.length} Darts</small></div><div class="training-session-result"><strong>${percent} %</strong><small>${matched} Treffer</small></div></div>`;
+  }).join(''):'<p class="empty">Für dieses Trainingsziel gibt es noch keine abgeschlossenen Einheiten.</p>';
+}
+function updateTrainingFilterVisibility(){
+ $('#heatmapTargetRow').hidden=$('#heatmapSource').value!=='training';
+ $('#hitTargetRow').hidden=$('#hitSource').value!=='training';
+}
+$('#trainingStatsTarget').addEventListener('change',renderTrainingTargetStats);
+$('#heatmapTrainingTarget').addEventListener('change',renderHeatmap);
+$('#hitTrainingTarget').addEventListener('change',renderHits);
 function renderProfile(){
  const s=statSet();
+ refreshTrainingTargetOptions();
+ updateTrainingFilterVisibility();
+ renderTrainingTargetStats();
  $('#statLegs').textContent=s.games.length;
  $('#statAverage').textContent=numberFormat(s.avg);
  $('#statFirst9').textContent=s.first9Count?numberFormat(s.first9):'–';
@@ -859,7 +906,7 @@ function renderHits(){
  const source=$('#hitSource').value;
  let shots=[];
  if(source!=='training')shots.push(...profileGames().flatMap(g=>g.visits.flatMap(v=>v.darts)));
- if(source!=='game')shots.push(...db.trainings.flatMap(t=>t.darts));
+ if(source!=='game')shots.push(...trainingsForTarget(source==='training'?$('#hitTrainingTarget').value:'all').flatMap(t=>t.darts));
  const counts=new Map();
  for(const d of shots)counts.set(d.segment,(counts.get(d.segment)||0)+1);
  const rows=[...counts.entries()].sort((a,b)=>sortedSegments(a,b,hitSort));
@@ -887,8 +934,9 @@ function heatmapDarts(){
   }
  }
  if(source!=='game'){
-  darts.push(...db.trainings.flatMap(t=>t.darts));
-  if(activeTraining)darts.push(...activeTraining.darts);
+  const selected=source==='training'?$('#heatmapTrainingTarget').value:'all';
+  darts.push(...trainingsForTarget(selected).flatMap(t=>t.darts));
+  if(activeTraining&&(selected==='all'||selected===activeTraining.target))darts.push(...activeTraining.darts);
  }
  return darts;
 }
@@ -931,15 +979,15 @@ function renderHeatmap(){
   +`<circle cx="200" cy="200" r="14" fill="none" stroke="#d7e1eb" stroke-width="1.35" pointer-events="none"/>`;
  const board=$('#heatmapBoard');board.innerHTML=`<svg xmlns="http://www.w3.org/2000/svg" width="424" height="424" viewBox="-12 -12 424 424" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Dartboard Heatmap aus ${darts.length} eigenen Darts">${paths}</svg>`;
  const details=$('#heatmapDetails');
- details.textContent=darts.length?`${darts.length} eigene Darts erfasst · ${counts.get('MISS')||0} daneben · Tippe auf ein Feld für Details.`:'Noch keine eigenen Darts erfasst. Spiele ein Leg oder starte ein Training.';
+ details.textContent=darts.length?`${darts.length} Darts im gewählten Bereich · ${counts.get('MISS')||0} daneben · Tippe auf ein Feld für Details.`:'Noch keine eigenen Darts erfasst. Spiele ein Leg oder starte ein Training.';
  const select=e=>{const el=e.target.closest('[data-seg]');if(!el)return;const seg=el.dataset.seg,c=counts.get(seg)||0;
  details.textContent=`${fieldName(seg)} (${seg}): ${c} Treffer · ${darts.length?numberFormat(c/darts.length*100):'0,0'} % aller eigenen Darts${absolute?' · '+c+' insgesamt':''}`;
  };
  board.onclick=select;board.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();select(e)}};
 }
-$('#heatmapSource').addEventListener('change',renderHeatmap);
+$('#heatmapSource').addEventListener('change',()=>{updateTrainingFilterVisibility();renderHeatmap()});
 $('#heatmapMode').addEventListener('change',renderHeatmap);
-$('#hitSource').addEventListener('change',renderHits);
+$('#hitSource').addEventListener('change',()=>{updateTrainingFilterVisibility();renderHits()});
 $('#sortHitsCount').addEventListener('click',()=>setHitSort('count'));
 $('#sortHitsNumber').addEventListener('click',()=>setHitSort('number'));
 function setHitSort(kind){

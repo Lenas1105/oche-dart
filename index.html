@@ -20,7 +20,7 @@
       <span class="brand-icon"><span>◎</span></span>
       <span><strong>OCHE<span class="brand-dot">.</span></strong><small>DART COMPANION</small></span>
     </a>
-    <div class="topbar-right"><div class="app-credit"><span class="version-tag">v7.2</span><small>von Lenas Sum</small></div><div class="connection"><i id="connectionDot"></i><span id="connectionLabel">Offline-fähig</span></div></div>
+    <div class="topbar-right"><div class="app-credit"><span class="version-tag">v7.3</span><small>von Lenas Sum</small></div><div class="connection"><i id="connectionDot"></i><span id="connectionLabel">Offline-fähig</span></div></div>
   </header>
 
   <main class="main">
@@ -179,9 +179,19 @@
         <div class="stat-box"><small>ERFOLGREICHE CHECKOUTS</small><strong id="statCheckoutRate">0</strong><span id="checkoutAttemptSummary">Abgeschlossene Finishes</span></div>
       </div>
 
+      <div class="panel training-analysis-panel">
+        <div class="section-header compact"><div><p class="eyebrow subtle">TRAININGSANALYSE</p><h3>Auswertung nach Trainingsziel</h3></div><span class="heatmap-icon">◎</span></div>
+        <label class="field"><span>WELCHES TRAINING AUSWERTEN?</span><select id="trainingStatsTarget"><option value="all">Alle Trainings zusammen</option></select></label>
+        <div id="trainingTargetSummary" class="training-summary-grid" aria-live="polite"></div>
+        <div id="trainingTargetProgress" class="training-target-progress" hidden><span></span></div>
+        <div id="trainingTargetSessions" class="training-target-sessions"></div>
+        <p class="caption">Jedes Training wird nach seinem ausgewählten Ziel (z. B. S20 oder S19) ausgewertet. Die Trefferquote zählt nur Würfe, die das Ziel exakt getroffen haben. Deine alten Trainingseinheiten bleiben erhalten.</p>
+      </div>
+
       <div class="panel heatmap-panel">
         <div class="section-header compact"><div><p class="eyebrow subtle">DEINE TREFFER</p><h3>Dartboard-Heatmap</h3></div><span class="heatmap-icon">◎</span></div>
         <div class="heatmap-controls"><label class="field"><span>DATENQUELLE</span><select id="heatmapSource"><option value="all">Alle eigenen Darts</option><option value="game">X01-Legs</option><option value="training">Training</option></select></label><label class="field"><span>ANZEIGE</span><select id="heatmapMode"><option value="relative">Trefferhäufigkeit</option><option value="absolute">Anzahl pro Feld</option></select></label></div>
+        <label class="field training-subfilter" id="heatmapTargetRow" hidden><span>TRAININGSZIEL</span><select id="heatmapTrainingTarget"><option value="all">Alle Trainingsziele</option></select></label>
         <div id="heatmapBoard" class="heatmap-board" aria-label="Heatmap deiner Dart-Treffer"></div>
         <div class="heatmap-legend"><span>Wenige Treffer</span><span class="heatmap-gradient"></span><span>Viele Treffer</span></div>
         <p id="heatmapDetails" class="caption center">Deine Treffer erscheinen hier nach dem ersten Dart.</p>
@@ -206,6 +216,7 @@
 
       <div class="panel">
         <div class="section-header compact"><div><p class="eyebrow subtle">TREFFERVERTEILUNG</p><h3>Jedes einzelne Feld</h3></div><select id="hitSource" class="mini-select"><option value="all">Alles</option><option value="game">X01</option><option value="training">Training</option></select></div>
+        <label class="field training-subfilter" id="hitTargetRow" hidden><span>TRAININGSZIEL</span><select id="hitTrainingTarget"><option value="all">Alle Trainingsziele</option></select></label>
         <div class="hit-controls"><button class="tiny-button selected" id="sortHitsCount">Nach Treffern</button><button class="tiny-button" id="sortHitsNumber">Nach Zahl</button></div>
         <p id="hitTotal" class="caption"></p>
         <div id="hitStats" class="hit-stat-list"><p class="empty">Noch keine Darts gespeichert.</p></div>

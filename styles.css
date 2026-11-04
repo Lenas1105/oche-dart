@@ -341,3 +341,22 @@ html,body,main,button,a,select,input,.number-grid,.number-btn,.keypad,.dart-slot
 @media (max-width:390px){
   .topbar{height:calc(54px + env(safe-area-inset-top, 0px));}
 }
+
+/* OCHE 7.3 · Trainingsauswertung nach Ziel */
+.training-analysis-panel{margin-bottom:18px}
+.training-summary-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:15px}
+.training-summary-stat{min-width:0;padding:15px 12px;background:#1b2a40;border:1px solid #32455a;border-radius:13px}
+.training-summary-stat small{display:block;color:#98abc1;font-size:9px;font-weight:850;letter-spacing:1px}
+.training-summary-stat strong{display:block;margin-top:7px;font-size:clamp(21px,6vw,29px);font-weight:850;color:#eff6fe;font-variant-numeric:tabular-nums}
+.training-summary-stat:last-child strong{color:var(--lime)}
+.training-target-progress{height:7px;background:#28384a;border-radius:20px;overflow:hidden;margin-top:15px}
+.training-target-progress span{display:block;height:100%;background:var(--lime);border-radius:inherit;transition:width .2s}
+.training-sessions-caption{margin:22px 0 9px}
+.training-target-sessions{display:flex;flex-direction:column;gap:7px}
+.training-session-row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:11px 12px;border:1px solid #2b3d52;background:#1b293c;border-radius:10px}
+.training-session-row strong,.training-session-row small{display:block}
+.training-session-row strong{font-size:13px}
+.training-session-row small{font-size:10px;color:var(--muted);margin-top:4px}
+.training-session-result{text-align:right;white-space:nowrap}
+.training-session-result strong{color:var(--lime)}
+.training-subfilter{margin:0 0 15px}
