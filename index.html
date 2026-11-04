@@ -20,7 +20,7 @@
       <span class="brand-icon"><span>◎</span></span>
       <span><strong>OCHE<span class="brand-dot">.</span></strong><small>DART COMPANION</small></span>
     </a>
-    <div class="connection"><i id="connectionDot"></i><span id="connectionLabel">Offline-fähig</span></div>
+    <div class="topbar-right"><div class="app-credit"><span class="version-tag">v5.0</span><small>von Lenas Sum</small></div><div class="connection"><i id="connectionDot"></i><span id="connectionLabel">Offline-fähig</span></div></div>
   </header>
 
   <main class="main">
@@ -125,6 +125,7 @@
           <div class="finish-stat-row"><div><strong id="finishedAvg">0,0</strong><small>DEIN 3-DART-AVG</small></div><div><strong id="finishedDarts">0</strong><small>DEINE DARTS</small></div><div><strong id="finishedCheckout">0</strong><small>FINISH</small></div></div>
         </div>
         <div class="panel standings-panel"><div class="section-header compact"><div><p class="eyebrow subtle">ZWISCHENSTAND</p><h3 id="standingsHeading">Matchübersicht</h3></div><span id="standingFormat" class="muted">LEGS</span></div><div id="standingsCards" class="standings-cards"></div><p id="standingsNote" class="caption"></p></div>
+        <button id="shareCurrentMatch" class="secondary-btn wide share-btn" type="button">↗ Match-Ergebnis teilen</button>
         <div id="decisionPanel" class="panel decision-panel"><p class="eyebrow">WIE GEHT'S WEITER?</p><h3 id="decisionTitle">Noch ein Leg?</h3><p class="caption" id="decisionText">Das abgeschlossene Leg ist bereits gespeichert. Ihr könnt jetzt weiterspielen oder das Match beenden.</p>
           <button class="primary-btn wide" id="nextLeg">Nächstes Leg spielen <span>→</span></button>
           <button class="secondary-btn wide" id="endMatchAfterLeg">Match jetzt beenden</button>
@@ -180,6 +181,24 @@
         <div class="stat-box"><small>3-DART-AVERAGE</small><strong id="statAverage">0,0</strong><span>Über alle Legs</span></div>
         <div class="stat-box"><small>FIRST 9 AVG</small><strong id="statFirst9">0,0</strong><span>Erste neun Darts je Leg</span></div>
         <div class="stat-box"><small>CHECKOUT-QUOTE</small><strong id="statCheckoutRate">–</strong><span id="checkoutAttemptSummary">0 von 0 Versuchen</span></div>
+      </div>
+
+      <div class="panel audio-settings">
+        <div class="section-header compact"><div><p class="eyebrow subtle">SPIELATMOSPHÄRE</p><h3>Audio & Ansagen</h3></div><span class="audio-symbol">♫</span></div>
+        <label class="audio-switch"><span><strong>Sprachansage</strong><small>Aufnahmen, 180er, Bust und Checkout ansagen</small></span><input id="voiceEnabled" type="checkbox" checked></label>
+        <label class="audio-switch"><span><strong>Soundeffekte</strong><small>Treffer, hohe Scores und Leg-Siege</small></span><input id="soundsEnabled" type="checkbox" checked></label>
+        <label class="field audio-volume"><span>LAUTSTÄRKE</span><input type="range" id="audioVolume" min="0" max="100" value="65"><output id="audioVolumeLabel">65 %</output></label>
+        <button type="button" id="testAudio" class="secondary-btn wide">▶ Audio testen</button>
+        <p class="caption">Audio benötigt eine Nutzeraktion zum Starten. Die Ansagen verwenden die auf deinem Gerät verfügbare Sprachausgabe und funktionieren abhängig vom Browser auch offline.</p>
+      </div>
+
+      <div class="panel heatmap-panel">
+        <div class="section-header compact"><div><p class="eyebrow subtle">DEINE TREFFER</p><h3>Dartboard-Heatmap</h3></div><span class="heatmap-icon">◎</span></div>
+        <div class="heatmap-controls"><label class="field"><span>DATENQUELLE</span><select id="heatmapSource"><option value="all">Alle eigenen Darts</option><option value="game">X01-Legs</option><option value="training">Training</option></select></label><label class="field"><span>ANZEIGE</span><select id="heatmapMode"><option value="relative">Trefferhäufigkeit</option><option value="absolute">Anzahl pro Feld</option></select></label></div>
+        <div id="heatmapBoard" class="heatmap-board" aria-label="Heatmap deiner Dart-Treffer"></div>
+        <div class="heatmap-legend"><span>Wenige Treffer</span><span class="heatmap-gradient"></span><span>Viele Treffer</span></div>
+        <p id="heatmapDetails" class="caption center">Deine Treffer erscheinen hier nach dem ersten Dart.</p>
+        <p class="caption">Jedes Feld wird anhand deiner eingegebenen Darts eingefärbt. Da du die Trefferfelder und keine exakten Einschlagpositionen erfasst, zeigt die Heatmap die Häufigkeit pro Segment – keine millimetergenaue Streuung. Gastwürfe zählen nicht.</p>
       </div>
 
       <div class="panel chart-panel">

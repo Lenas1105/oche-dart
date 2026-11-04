@@ -17,6 +17,57 @@ const integer=x=>Number.isFinite(Number(x))?Number(x):0;
 const localDay=iso=>{const d=new Date(iso);return Number.isNaN(d.getTime())?'':`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`};
 const dayLabel=day=>{const [y,m,d]=day.split('-');return `${d}.${m}.${y}`};
 function makeId(){return (typeof crypto!=='undefined'&&crypto.randomUUID)?crypto.randomUUID():`${Date.now()}-${Math.random().toString(36).slice(2,10)}`}
+// OCHE 5: Soundeffekte via Web Audio (keine externen Audiodateien).
+const AUDIO_KEY='oche-dart-audio-v5';
+let audioSettings={voice:true,sounds:true,volume:65};
+try{audioSettings={...audioSettings,...JSON.parse(localStorage.getItem(AUDIO_KEY)||'{}')}}catch{}
+let audioContext=null;
+function audioCtx(){
+ try{const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return null;
+  if(!audioContext)audioContext=new AC();if(audioContext.state==='suspended')audioContext.resume().catch(()=>{});return audioContext;
+ }catch{return null}
+}
+function tone(frequency=560,duration=.09,delay=0,type='sine',level=.12){
+ if(!audioSettings.sounds||!audioSettings.volume)return;
+ const ctx=audioCtx();if(!ctx)return;
+ try{const o=ctx.createOscillator(),g=ctx.createGain(),now=ctx.currentTime+delay;
+ o.type=type;o.frequency.setValueAtTime(frequency,now);
+ g.gain.setValueAtTime(.0001,now);g.gain.exponentialRampToValueAtTime(Math.max(.0002,level*audioSettings.volume/100),now+.012);
+ g.gain.exponentialRampToValueAtTime(.0001,now+duration);
+ o.connect(g);g.connect(ctx.destination);o.start(now);o.stop(now+duration+.03);
+ }catch{}
+}
+function playEffect(kind){
+ if(kind==='dart')tone(420,.065,0,'triangle',.07);
+ else if(kind==='bust'){tone(210,.16);tone(160,.19,.13)}
+ else if(kind==='high'){tone(520,.11);tone(690,.12,.12);tone(880,.2,.26)}
+ else if(kind==='win'){tone(440,.12);tone(550,.12,.13);tone(660,.13,.26);tone(880,.28,.40)}
+ else tone(620,.09);
+}
+function say(text){
+ if(!audioSettings.voice||!('speechSynthesis' in window))return;
+ try{const synth=window.speechSynthesis;synth.cancel();const u=new SpeechSynthesisUtterance(String(text));
+ u.lang='de-DE';u.rate=.98;u.volume=Math.min(1,Math.max(0,audioSettings.volume/100));
+ const voices=synth.getVoices();const german=voices.find(v=>v.lang.toLowerCase().startsWith('de'));if(german)u.voice=german;
+ synth.speak(u);
+ }catch{}
+}
+function announceVisit(s,id,score,bust,checkout){
+ if(checkout){playEffect('win');say(`${sessionPlayerName(s,id)} gewinnt das Leg!`)}
+ else if(bust){playEffect('bust');say(`${sessionPlayerName(s,id)}, Bust`)}
+ else if(score>=140){playEffect('high');say(score===180?'One hundred and eighty!':`${score} Punkte`)}
+ else{playEffect('dart');say(`${score} Punkte`)}
+}
+function initAudioControls(){
+ const voice=$('#voiceEnabled'),sounds=$('#soundsEnabled'),volume=$('#audioVolume'),label=$('#audioVolumeLabel');
+ voice.checked=!!audioSettings.voice;sounds.checked=!!audioSettings.sounds;
+ volume.value=Math.max(0,Math.min(100,Number(audioSettings.volume)||0));label.textContent=volume.value+' %';
+ function persist(){localStorage.setItem(AUDIO_KEY,JSON.stringify(audioSettings))}
+ voice.addEventListener('change',()=>{audioSettings.voice=voice.checked;persist();if(!voice.checked&&'speechSynthesis' in window)speechSynthesis.cancel()});
+ sounds.addEventListener('change',()=>{audioSettings.sounds=sounds.checked;persist()});
+ volume.addEventListener('input',()=>{audioSettings.volume=Number(volume.value);label.textContent=volume.value+' %';persist()});
+ $('#testAudio').addEventListener('click',()=>{playEffect('high');say('OCHE Version fünf. Viel Erfolg beim Dartspielen!')});
+}
 function normalizeDart(raw){
  if(!raw||typeof raw!=='object')return null;
  let segment=raw.segment;
@@ -511,6 +562,7 @@ function finalizeVisit(bust,checkout){
   score=bust?0:darts.reduce((n,d)=>n+d.points,0);
  s.visits.push({playerId:id,number:sessionCurrentVisits(s,id).length+1,darts,score,bust,checkout});
  s.turn=[];
+ announceVisit(s,id,score,bust,checkout);
  if(checkout){
   const now=new Date().toISOString();
   s.completedLegs.push({id:makeId(),number:s.completedLegs.length+1,
@@ -797,6 +849,7 @@ function renderProfile(){
  $('#profileIntro').textContent=`${s.totalThrown+s.trainDarts.length} eigene Darts · ${s.games.length} Legs · Gastwürfe ausgeschlossen`;
  renderAverageChart();
  renderHits();
+ renderHeatmap();
  renderDaily();
  renderCheckouts();
  renderHistory();
@@ -856,6 +909,53 @@ function renderHits(){
  </div>`
  ).join(''):'<p class="empty">Noch keine Darts erfasst. Spiele ein Leg oder absolviere ein Training.</p>';
 }
+// Heatmap aus echten Segmentzählungen: kein Schätzen von Einschlagkoordinaten.
+const BOARD_ORDER=[20,1,18,4,13,6,10,15,2,17,3,19,7,16,8,11,14,9,12,5];
+function heatmapDarts(){
+ const source=$('#heatmapSource').value;let darts=[];
+ if(source!=='training')darts.push(...profileGames().flatMap(g=>g.visits.flatMap(v=>v.darts)));
+ if(source!=='game')darts.push(...db.trainings.flatMap(t=>t.darts));
+ return darts;
+}
+function polar(r,deg){const rad=deg*Math.PI/180;return [200+r*Math.cos(rad),200+r*Math.sin(rad)]}
+function sectorPath(inner,outer,a,b){
+ const [x1,y1]=polar(outer,a),[x2,y2]=polar(outer,b),[x3,y3]=polar(inner,b),[x4,y4]=polar(inner,a);
+ return `M${x1.toFixed(3)} ${y1.toFixed(3)} A${outer} ${outer} 0 0 1 ${x2.toFixed(3)} ${y2.toFixed(3)} L${x3.toFixed(3)} ${y3.toFixed(3)} A${inner} ${inner} 0 0 0 ${x4.toFixed(3)} ${y4.toFixed(3)} Z`;
+}
+function heatColor(count,max){
+ if(!count)return '#202f3e';const t=Math.sqrt(count/Math.max(1,max));
+ const colors=[[35,65,76],[55,119,120],[112,184,123],[214,250,69]];
+ const z=t*(colors.length-1),i=Math.min(colors.length-2,Math.floor(z)),f=z-i;
+ const c=colors[i].map((v,j)=>Math.round(v+(colors[i+1][j]-v)*f));return `rgb(${c.join(',')})`;
+}
+function renderHeatmap(){
+ const darts=heatmapDarts(),counts=new Map();for(const d of darts)counts.set(d.segment,(counts.get(d.segment)||0)+1);
+ const max=Math.max(1,...counts.values()),absolute=$('#heatmapMode').value==='absolute';
+ let paths='<circle cx="200" cy="200" r="193" fill="#101a29" stroke="#607186" stroke-width="3"/>';
+ const sections=[['S',32,94],['T',94,110],['S',110,164],['D',164,185]];
+ for(let i=0;i<20;i++){
+  const n=BOARD_ORDER[i],a=-99+i*18,b=a+18;
+  for(const [prefix,inner,outer] of sections){
+   const seg=prefix+n,count=counts.get(seg)||0,color=heatColor(count,max);
+   paths+=`<path class="heat-segment" tabindex="0" role="button" aria-label="${seg}: ${count} Treffer" data-seg="${seg}" d="${sectorPath(inner,outer,a,b)}" fill="${color}"><title>${seg}: ${count} Treffer</title></path>`;
+  }
+  const [x,y]=polar(198,-90+i*18);
+  paths+=`<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" font-size="13" font-weight="800" fill="#dce8f3" pointer-events="none">${n}</text>`;
+ }
+ for(const [seg,r] of [['SB',32],['DB',14]]){
+  const count=counts.get(seg)||0;
+  paths+=`<circle class="heat-segment" role="button" tabindex="0" aria-label="${seg}: ${count} Treffer" data-seg="${seg}" cx="200" cy="200" r="${r}" fill="${heatColor(count,max)}"><title>${seg}: ${count} Treffer</title></circle>`;
+ }
+ const board=$('#heatmapBoard');board.innerHTML=`<svg viewBox="-12 -12 424 424" role="img" aria-label="Dartboard Heatmap aus ${darts.length} eigenen Darts">${paths}</svg>`;
+ const details=$('#heatmapDetails');
+ details.textContent=darts.length?`${darts.length} eigene Darts erfasst · ${counts.get('MISS')||0} daneben · Tippe auf ein Feld für Details.`:'Noch keine eigenen Darts erfasst. Spiele ein Leg oder starte ein Training.';
+ const select=e=>{const el=e.target.closest('[data-seg]');if(!el)return;const seg=el.dataset.seg,c=counts.get(seg)||0;
+ details.textContent=`${fieldName(seg)} (${seg}): ${c} Treffer · ${darts.length?numberFormat(c/darts.length*100):'0,0'} % aller eigenen Darts${absolute?' · '+c+' insgesamt':''}`;
+ };
+ board.onclick=select;board.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();select(e)}};
+}
+$('#heatmapSource').addEventListener('change',renderHeatmap);
+$('#heatmapMode').addEventListener('change',renderHeatmap);
 $('#hitSource').addEventListener('change',renderHits);
 $('#sortHitsCount').addEventListener('click',()=>setHitSort('count'));
 $('#sortHitsNumber').addEventListener('click',()=>setHitSort('number'));
@@ -936,10 +1036,51 @@ function renderMatchHistory(){
    <div class="match-history-head"><strong>${escapeHTML(label)}</strong><span class="match-history-status ${ended?'finished':''}">${ended?'Beendet':'Läuft'}</span></div>
    <p>${names}</p><small>${s.completedLegs.length} Legs gespielt · ${escapeHTML(dayLabel(localDay(s.startedAt)||'2000-01-01'))}</small>
    <div class="match-history-footer"><span>${summary}</span>${champion?`<strong>🏆 ${escapeHTML(champion)}</strong>`:''}</div>
+   <button type="button" class="tiny-button share-history" data-share-session="${escapeHTML(s.id)}">↗ Teilen</button>
   </div>`;
  }).join(''):'<p class="empty">Nach deinem ersten abgeschlossenen Leg erscheint hier die Matchhistorie.</p>';
 }
 
+// Matchkarte als PNG erzeugen; native iOS-Teilen-Funktion, Fallback Textkopie.
+function matchShareText(s){
+ const st=sessionStandings(s),label=s.format==='sets'?`${s.setsToWin} Sets / ${s.legsPerSet} Legs je Set`:s.format==='legs'?`Erster mit ${s.legsToWin} Legs`:'Freies Spiel';
+ const lines=s.players.map(p=>`${p.name}: ${st.totals[p.id]} Legs${s.format==='sets'?`, ${st.sets[p.id]} Sets`:''}`);
+ return `🎯 OCHE 5.0 – Dart-Match\n${s.start} · ${s.mode==='double'?'Double Out':s.mode==='master'?'Master Out':'Straight Out'} · ${label}\n${lines.join('\n')}\n${s.completedLegs.length} Legs gespielt${st.targetWinner?'\n🏆 Sieger: '+sessionPlayerName(s,st.targetWinner):''}\nErstellt mit OCHE von Lenas Sum`;
+}
+function createMatchImage(s){
+ const canvas=document.createElement('canvas');canvas.width=1080;canvas.height=630;
+ const ctx=canvas.getContext('2d');if(!ctx)throw new Error('Canvas nicht verfügbar');
+ ctx.fillStyle='#0b1220';ctx.fillRect(0,0,1080,630);
+ ctx.fillStyle='#d6fa45';ctx.font='bold 75px system-ui';ctx.fillText('OCHE.',65,115);
+ ctx.fillStyle='#a8bacd';ctx.font='26px system-ui';ctx.fillText('DART MATCH  ·  VERSION 5.0',68,158);
+ ctx.fillStyle='#f4f7fb';ctx.font='bold 38px system-ui';ctx.fillText(`${s.start} · ${s.completedLegs.length} Legs gespielt`,65,238);
+ const st=sessionStandings(s);
+ const sorted=[...s.players].sort((a,b)=>st.totals[b.id]-st.totals[a.id]);
+ sorted.slice(0,5).forEach((p,i)=>{
+  const y=302+i*52;ctx.fillStyle=i===0?'#d6fa45':'#e4ecf5';ctx.font='bold 29px system-ui';
+  const name=p.name.length>23?p.name.slice(0,22)+'…':p.name;
+  ctx.fillText(name,70,y);ctx.textAlign='right';ctx.fillText(`${st.totals[p.id]} Legs${s.format==='sets'?' · '+st.sets[p.id]+' Sets':''}`,1005,y);ctx.textAlign='left';
+ });
+ if(sorted.length>5){ctx.fillStyle='#a8bacd';ctx.font='23px system-ui';ctx.fillText(`+ ${sorted.length-5} weitere Spieler`,70,580)}
+ ctx.fillStyle='#a8bacd';ctx.font='22px system-ui';ctx.fillText('Entwickelt von Lenas Sum',68,610);
+ return new Promise((resolve,reject)=>canvas.toBlob(blob=>blob?resolve(blob):reject(new Error('Bild konnte nicht erstellt werden')),'image/png'));
+}
+async function shareMatch(s){
+ if(!s||!s.completedLegs.length){toast('Erst nach einem abgeschlossenen Leg kannst du teilen.');return}
+ const text=matchShareText(s);
+ try{
+  if(navigator.share){
+   try{const blob=await createMatchImage(s);const file=new File([blob],'oche-match.png',{type:'image/png'});
+    if(navigator.canShare?.({files:[file]})){await navigator.share({title:'OCHE Match',text,files:[file]});return}
+   }catch(e){if(e?.name==='AbortError')return}
+   await navigator.share({title:'OCHE Match',text});return;
+  }
+  if(navigator.clipboard?.writeText){await navigator.clipboard.writeText(text);toast('Match-Ergebnis kopiert. Jetzt in WhatsApp einfügen.');return}
+  window.prompt('Match-Ergebnis zum Kopieren:',text);
+ }catch(e){if(e?.name!=='AbortError')toast('Teilen nicht möglich. Bitte erneut versuchen.')}
+}
+$('#shareCurrentMatch').addEventListener('click',()=>shareMatch(activeSession));
+$('#matchHistory').addEventListener('click',e=>{const btn=e.target.closest('[data-share-session]');if(btn){const s=db.sessions.find(x=>String(x.id)===btn.dataset.shareSession);if(s)shareMatch(s)}});
 // BACKUP – Keine Cloud, keine fremden Server, kein Benutzerkonto nötig.
 function exportBackup(){
  const content=JSON.stringify({...db,activeSessionId:activeSession?.phase==='finished'?null:activeSession?.id||null,activeTraining},null,2);
@@ -971,10 +1112,10 @@ $('#deleteAll').addEventListener('click',()=>{
  if(!confirm('Wirklich ALLE Legs, Trainings und Statistiken löschen? Die Daten sind ohne Backup unwiederbringlich verloren.'))return;
  db={version:4,games:[],matches:[],sessions:[],trainings:[],activeSessionId:null,activeTraining:null};
  activeSession=null;activeTraining=null;completedTraining=null;
- save();showGameState();showTrainingState();renderProfile();toast('Alle Daten gelöscht.');
+ initAudioControls();save();showGameState();showTrainingState();renderProfile();toast('Alle Daten gelöscht.');
 });
 if('serviceWorker' in navigator){
  window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js',{scope:'./'}).catch(e=>console.warn('Offline-Cache konnte nicht gestartet werden',e)));
 }
 window.addEventListener('resize',()=>{if(activePage==='profileView')renderAverageChart()});
-save();showGameState();showTrainingState();renderProfile();
+initAudioControls();save();showGameState();showTrainingState();renderProfile();
