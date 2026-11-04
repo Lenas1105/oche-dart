@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="OCHE">
-  <meta name="description" content="Dein kompakter offline Dart-X01-Zähler mit Checkout-Hilfe, Training und Statistiken.">
+  <meta name="description" content="Dein offline Dart-X01-Zähler mit Checkout-Hilfe, Training und Statistiken.">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <link rel="manifest" href="manifest.webmanifest">
@@ -20,7 +20,7 @@
       <span class="brand-icon"><span>◎</span></span>
       <span><strong>OCHE<span class="brand-dot">.</span></strong><small>DART COMPANION</small></span>
     </a>
-    <div class="topbar-right"><div class="app-credit"><span class="version-tag">v7.0</span><small>von Lenas Sum</small></div><div class="connection"><i id="connectionDot"></i><span id="connectionLabel">Offline-fähig</span></div></div>
+    <div class="topbar-right"><div class="app-credit"><span class="version-tag">v6.0</span><small>von Lenas Sum</small></div><div class="connection"><i id="connectionDot"></i><span id="connectionLabel">Offline-fähig</span></div></div>
   </header>
 
   <main class="main">
@@ -93,17 +93,63 @@
             <div><strong id="gameBest">–</strong><small>BESTE AUFNAHME</small></div>
           </div>
         </div>
-        <div id="checkoutAdvisor" class="advisor panel" aria-live="polite" hidden>
+        <div class="advisor panel" aria-live="polite">
           <div class="advisor-top"><span class="eyebrow" id="adviceType">CHECKOUT-ASSISTENT</span><span id="adviceDarts" class="pill-outlined">3 Darts übrig</span></div>
           <div class="advice-main"><div><h3 id="adviceHeading">Dein nächster Wurf</h3><p id="adviceText">Empfehlung wird berechnet.</p></div><span class="advisor-icon">↗</span></div>
           <div id="adviceSteps" class="advice-steps"></div>
         </div>
         <div class="round-header">
           <div><p class="eyebrow subtle">AKTUELLE AUFNAHME</p><h2><span id="turnHeader">Deine Darts</span> <span id="turnTotal" class="turn-total">0 Punkte</span></h2></div>
-          <div class="turn-tools"><span id="turnIndex" class="muted">1 / 3</span><button id="undoGameQuick" type="button" class="quick-undo" aria-label="Letzten Dart rückgängig machen" title="Letzten Dart zurück">↶</button></div>
+          <span id="turnIndex" class="muted">1 / 3</span>
         </div>
         <div class="dart-slots" id="dartSlots" aria-live="polite"></div>
+        <div class="input-mode-panel" role="group" aria-label="Wurfeingabe wählen">
+          <div class="input-mode-heading"><span>WURFERFASSUNG</span><span class="input-privacy">● Lokal auf deinem Gerät</span></div>
+          <div class="input-mode-choices">
+            <button type="button" class="input-mode-btn selected" id="inputModeManual">⌗ &nbsp; Manuell eingeben</button>
+            <button type="button" class="input-mode-btn" id="inputModeCamera">▣ &nbsp; Handykamera <span class="beta-pill">BETA</span></button>
+          </div>
+        </div>
+        <div id="cameraPanel" class="camera-panel panel" hidden>
+          <div class="camera-panel-head"><div><p class="eyebrow subtle">OCHE VISION · BETA</p><h3>Kamera-Autoscoring</h3></div><span class="camera-live-pill" id="cameraLiveTag">○ AUS</span></div>
+          <p class="caption camera-explainer">Eine Kamera erkennt Bildveränderungen, aber nicht jeden Dart zuverlässig. Kalibriere das Board und <strong>bestätige jeden erkannten Treffer</strong>. Unsichere Treffer kannst du direkt durch Antippen der Dartspitze korrigieren.</p>
+          <div class="camera-stage">
+            <video id="cameraVideo" playsinline muted autoplay aria-hidden="true"></video>
+            <canvas id="cameraCanvas" width="800" height="600" aria-label="Kamerabild. Zur Kalibrierung fünf Punkte, zur Korrektur die Dartspitze antippen."></canvas>
+            <div class="camera-watermark">OCHE VISION <span>6.0</span></div>
+          </div>
+          <div id="cameraStatus" class="camera-status" role="status" aria-live="polite">Kamera starten und einmal das Dartboard kalibrieren.</div>
+          <div class="camera-primary-actions">
+            <button type="button" id="cameraStart" class="primary-btn">▣ Kamera starten</button>
+            <button type="button" id="cameraStop" class="secondary-btn" hidden>■ Kamera stoppen</button>
+            <button type="button" id="cameraCalibrate" class="secondary-btn" disabled>Scheibe kalibrieren</button>
+          </div>
+          <label class="field camera-direction"><span>WO STEHT DAS HANDY IM VERGLEICH ZUR SCHEIBE?</span><select id="cameraDirection">
+            <option value="right">Rechts von der Scheibe</option><option value="left">Links von der Scheibe</option><option value="above">Oberhalb der Scheibe</option><option value="below">Unterhalb der Scheibe</option><option value="center">Möglichst gerade davor</option>
+          </select></label>
+          <div class="camera-primary-actions camera-capture-actions">
+            <button type="button" class="secondary-btn" id="cameraReference" disabled>① Referenz speichern</button>
+            <button type="button" class="secondary-btn" id="cameraCheck" disabled>② Jetzt erkennen</button>
+          </div>
+          <div id="cameraResult" class="camera-result" hidden>
+            <div class="camera-result-title"><span>VORGESCHLAGENER TREFFER</span><strong id="cameraSuggestion">Dartspitze antippen</strong></div>
+            <p class="caption">Ist der Vorschlag falsch? Tippe im Standbild auf die Dartspitze und korrigiere die Position bei Bedarf pixelweise.</p>
+            <div class="camera-fine-adjust"><span>FEINKORREKTUR DER SPITZE</span><div class="camera-nudge-buttons">
+              <button type="button" data-camera-nudge="left" aria-label="Dartspitze etwas nach links">←</button>
+              <button type="button" data-camera-nudge="up" aria-label="Dartspitze etwas nach oben">↑</button>
+              <button type="button" data-camera-nudge="down" aria-label="Dartspitze etwas nach unten">↓</button>
+              <button type="button" data-camera-nudge="right" aria-label="Dartspitze etwas nach rechts">→</button>
+            </div></div>
+            <button type="button" id="cameraAccept" class="primary-btn wide" disabled>✓ Treffer übernehmen</button>
+            <button type="button" id="cameraRetry" class="ghost-btn wide">↻ Erneut erkennen</button>
+          </div>
+          <p class="caption camera-footnote">Ablauf: iPhone auf Stativ → Scheibe kalibrieren (Mitte, oben, rechts, unten, links) → ohne Bewegung Referenz speichern → Dart werfen → automatischen Vorschlag prüfen → übernehmen. Nach 3 Darts: Pfeile entfernen und neue Referenz aufnehmen. Die Kameraaufnahmen werden nicht gespeichert oder hochgeladen.</p>
+        </div>
         <div id="gamePad" class="keypad panel"></div>
+        <button class="attempt-toggle" id="attemptToggle" aria-pressed="false">
+          <span class="attempt-check" id="attemptCheck">○</span>
+          <span><strong>Diesen Dart als Checkout-Versuch markieren</strong><small>Auch bei einem Fehlwurf, z. B. auf Doppel 20</small></span>
+        </button>
         <div class="action-row">
           <button id="undoGame" class="secondary-btn"><span>↶</span> Letzten Dart zurück</button>
           <button id="abandonGame" class="ghost-btn dangerous">Match beenden</button>
@@ -176,7 +222,15 @@
         <div class="stat-box"><small>GESPIELTE LEGS</small><strong id="statLegs">0</strong><span>Solo- und Gast-Legs</span></div>
         <div class="stat-box"><small>3-DART-AVERAGE</small><strong id="statAverage">0,0</strong><span>Über alle Legs</span></div>
         <div class="stat-box"><small>FIRST 9 AVG</small><strong id="statFirst9">0,0</strong><span>Erste neun Darts je Leg</span></div>
-        <div class="stat-box"><small>ERFOLGREICHE CHECKOUTS</small><strong id="statCheckoutRate">0</strong><span id="checkoutAttemptSummary">Abgeschlossene Finishes</span></div>
+        <div class="stat-box"><small>CHECKOUT-QUOTE</small><strong id="statCheckoutRate">–</strong><span id="checkoutAttemptSummary">0 von 0 Versuchen</span></div>
+      </div>
+
+      <div class="panel audio-settings">
+        <div class="section-header compact"><div><p class="eyebrow subtle">SPIELATMOSPHÄRE</p><h3>Soundeffekte</h3></div><span class="audio-symbol">♫</span></div>
+        <label class="audio-switch"><span><strong>Soundeffekte</strong><small>Treffer, hohe Scores und Leg-Siege</small></span><input id="soundsEnabled" type="checkbox" checked></label>
+        <label class="field audio-volume"><span>LAUTSTÄRKE</span><input type="range" id="audioVolume" min="0" max="100" value="65"><output id="audioVolumeLabel">65 %</output></label>
+        <button type="button" id="testAudio" class="secondary-btn wide">▶ Sound testen</button>
+        <p class="caption">Die Soundeffekte werden lokal erzeugt und funktionieren auch ohne Internet. Eine Sprachausgabe gibt es in Version 6 nicht mehr.</p>
       </div>
 
       <div class="panel heatmap-panel">
@@ -248,5 +302,7 @@
   </nav>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <script src="app.js"></script>
+  <script src="camera-vision.js"></script>
+  <script src="camera.js"></script>
 </body>
 </html>

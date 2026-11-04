@@ -17,18 +17,48 @@ const integer=x=>Number.isFinite(Number(x))?Number(x):0;
 const localDay=iso=>{const d=new Date(iso);return Number.isNaN(d.getTime())?'':`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`};
 const dayLabel=day=>{const [y,m,d]=day.split('-');return `${d}.${m}.${y}`};
 function makeId(){return (typeof crypto!=='undefined'&&crypto.randomUUID)?crypto.randomUUID():`${Date.now()}-${Math.random().toString(36).slice(2,10)}`}
-// OCHE 7 · Diskreter Eingabeton als HTMLAudioElement. Der Browser/OS entscheidet über Stummschaltung.
-// Der Status des iPhone-Klingeltonschalters lässt sich in einer Web-App nicht auslesen.
-let tapAudio=null;
-function playTap(){
- try{
-  if(typeof Audio==='undefined')return;
-  if(!tapAudio){tapAudio=new Audio('./tap.wav');tapAudio.preload='auto';tapAudio.volume=.34;}
-  tapAudio.pause();tapAudio.currentTime=0;
-  const result=tapAudio.play();if(result?.catch)result.catch(()=>{});
+// OCHE 5: Soundeffekte via Web Audio (keine externen Audiodateien).
+const AUDIO_KEY='oche-dart-audio-v5';
+let audioSettings={sounds:true,volume:65};
+try{audioSettings={...audioSettings,...JSON.parse(localStorage.getItem(AUDIO_KEY)||'{}')};delete audioSettings.voice}catch{}
+let audioContext=null;
+function audioCtx(){
+ try{const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return null;
+  if(!audioContext)audioContext=new AC();if(audioContext.state==='suspended')audioContext.resume().catch(()=>{});return audioContext;
+ }catch{return null}
+}
+function tone(frequency=560,duration=.09,delay=0,type='sine',level=.12){
+ if(!audioSettings.sounds||!audioSettings.volume)return;
+ const ctx=audioCtx();if(!ctx)return;
+ try{const o=ctx.createOscillator(),g=ctx.createGain(),now=ctx.currentTime+delay;
+ o.type=type;o.frequency.setValueAtTime(frequency,now);
+ g.gain.setValueAtTime(.0001,now);g.gain.exponentialRampToValueAtTime(Math.max(.0002,level*audioSettings.volume/100),now+.012);
+ g.gain.exponentialRampToValueAtTime(.0001,now+duration);
+ o.connect(g);g.connect(ctx.destination);o.start(now);o.stop(now+duration+.03);
  }catch{}
 }
-function announceVisit(){/* Keine Sprachausgabe oder Match-Fanfaren. */}
+function playEffect(kind){
+ if(kind==='dart')tone(420,.065,0,'triangle',.07);
+ else if(kind==='bust'){tone(210,.16);tone(160,.19,.13)}
+ else if(kind==='high'){tone(520,.11);tone(690,.12,.12);tone(880,.2,.26)}
+ else if(kind==='win'){tone(440,.12);tone(550,.12,.13);tone(660,.13,.26);tone(880,.28,.40)}
+ else tone(620,.09);
+}
+function announceVisit(s,id,score,bust,checkout){
+ if(checkout)playEffect('win');
+ else if(bust)playEffect('bust');
+ else if(score>=140)playEffect('high');
+ else playEffect('dart');
+}
+function initAudioControls(){
+ const sounds=$('#soundsEnabled'),volume=$('#audioVolume'),label=$('#audioVolumeLabel');
+ sounds.checked=!!audioSettings.sounds;
+ volume.value=Math.max(0,Math.min(100,Number(audioSettings.volume)||0));label.textContent=volume.value+' %';
+ function persist(){localStorage.setItem(AUDIO_KEY,JSON.stringify(audioSettings))}
+ sounds.addEventListener('change',()=>{audioSettings.sounds=sounds.checked;persist()});
+ volume.addEventListener('input',()=>{audioSettings.volume=Number(volume.value);label.textContent=volume.value+' %';persist()});
+ $('#testAudio').addEventListener('click',()=>playEffect('high'));
+}
 function normalizeDart(raw){
  if(!raw||typeof raw!=='object')return null;
  let segment=raw.segment;
@@ -250,7 +280,7 @@ let db=readData();
 let activeSession=db.sessions.find(s=>s.id===db.activeSessionId)||null;
 let activeTraining=db.activeTraining;
 let completedTraining=null,activePage='gameView',hitSort='count',setupGuests=[],setupFormat='free';
-let toastTimer=null;
+let gameMarkAttempt=false,toastTimer=null;
 function save(){
  db.version=4;db.activeSessionId=activeSession?.phase==='finished'?null:activeSession?.id||null;
  db.activeTraining=activeTraining;
@@ -266,6 +296,7 @@ function showPage(id){
  activePage=id;
  $$('.page').forEach(el=>el.classList.toggle('active',el.id===id));
  $$('.nav-btn').forEach(el=>el.classList.toggle('active',el.dataset.page===id));
+ if(id!=='gameView')window.ocheCamera?.onLeaveGame();
  if(id==='profileView')renderProfile();
  if(id==='trainingView')renderTrainingPreview();
  window.scrollTo({top:0,behavior:'auto'});
@@ -465,12 +496,12 @@ renderSetupGuests();setSetupFormat('free');
 function activeMatch(){return activeSession&&activeSession.phase==='playing'?activeSession:null}
 function showGameState(){
  const s=activeSession;
- $('#gameView').classList.toggle('is-playing',!!s&&s.phase==='playing');
  $('#gameSetup').hidden=!!s;
  $('#gameActive').hidden=!s||s.phase!=='playing';
  $('#gameFinished').hidden=!s||s.phase==='playing';
  if(s&&s.phase==='playing')renderGame();
  if(s&&s.phase!=='playing')renderGameFinish();
+ window.ocheCamera?.onGameStateChange();
 }
 function startGame(){
  if(activeSession&&activeSession.phase!=='finished'&&!confirm('Aktuelles Match wirklich beenden? Abgeschlossene Legs bleiben gespeichert; das laufende Leg wird verworfen.'))return;
@@ -489,17 +520,25 @@ function startGame(){
   legStartedAt:new Date().toISOString(),finishedAt:null,finishedReason:null,
   phase:'playing',completedLegs:[],visits:[],turn:[]};
  db.sessions.push(activeSession);
- save();showGameState();window.scrollTo({top:0,behavior:'instant'});
+ gameMarkAttempt=false;updateAttemptToggle();save();showGameState();
 }
 $('#startGame').addEventListener('click',startGame);
 $('#newMatch').addEventListener('click',()=>{activeSession=null;save();showGameState();window.scrollTo(0,0)});
 $('#goProfile').addEventListener('click',()=>showPage('profileView'));
+function updateAttemptToggle(){
+ $('#attemptToggle').setAttribute('aria-pressed',String(gameMarkAttempt));
+ $('#attemptCheck').textContent=gameMarkAttempt?'◉':'○';
+}
+$('#attemptToggle').addEventListener('click',()=>{
+ if(!activeMatch())return;
+ gameMarkAttempt=!gameMarkAttempt;updateAttemptToggle();
+});
 function addGameDart(segment){
  const s=activeMatch();if(!s||!validSegment(segment))return;
- playTap();
+ window.ocheCamera?.onGameDart(segment);
  const id=s.currentPlayerId;
- const dart={segment,points:POINTS[segment],checkoutAttempt:false};
- 
+ const dart={segment,points:POINTS[segment],checkoutAttempt:gameMarkAttempt};
+ gameMarkAttempt=false;updateAttemptToggle();
  const before=sessionRemaining(s,id)-s.turn.reduce((n,d)=>n+d.points,0);
  const after=before-dart.points;
  if(after===0&&allowedFinisher(segment,s.mode))dart.checkoutAttempt=true;
@@ -532,20 +571,20 @@ function finalizeVisit(bust,checkout){
  }else{
   s.currentPlayerId=nextSessionPlayer(s,id);
  }
- save();showGameState();
+ gameMarkAttempt=false;updateAttemptToggle();save();showGameState();
 }
 function undoGameDart(){
  const s=activeMatch();if(!s)return;
+ window.ocheCamera?.onGameDart();
  if(s.turn.length){s.turn.pop()}
  else if(s.visits.length){
   const v=s.visits.pop();
   s.currentPlayerId=v.playerId;
   s.turn=v.darts.slice(0,-1);
  }else{toast('Noch kein Dart zum Rückgängigmachen.');return}
- save();renderGame();
+ gameMarkAttempt=false;updateAttemptToggle();save();renderGame();
 }
 $('#undoGame').addEventListener('click',undoGameDart);
-$('#undoGameQuick').addEventListener('click',undoGameDart);
 function undoCheckout(){
  const s=activeSession;if(!s||s.phase==='playing'||!s.completedLegs.length)return;
  const last=s.completedLegs.pop();
@@ -557,7 +596,7 @@ function undoCheckout(){
  s.legStartedAt=last.startedAt;
  s.starterIndex=last.starterIndex;
  s.phase='playing';s.finishedAt=null;s.finishedReason=null;
- save();showGameState();toast('Checkout rückgängig gemacht.');
+ gameMarkAttempt=false;updateAttemptToggle();save();showGameState();toast('Checkout rückgängig gemacht.');
 }
 $('#undoCheckout').addEventListener('click',undoCheckout);
 function nextLeg(){
@@ -565,14 +604,14 @@ function nextLeg(){
  s.starterIndex=(s.firstStarterIndex+s.completedLegs.length)%s.players.length;
  s.currentPlayerId=s.players[s.starterIndex].id;
  s.visits=[];s.turn=[];s.legStartedAt=new Date().toISOString();
- s.phase='playing';save();showGameState();window.scrollTo({top:0,behavior:'instant'});
+ s.phase='playing';gameMarkAttempt=false;updateAttemptToggle();save();showGameState();
 }
 $('#nextLeg').addEventListener('click',nextLeg);
 function endMatch(){
  const s=activeSession;if(!s||s.phase==='finished')return;
  if(s.phase==='playing'&&!confirm('Match wirklich beenden? Bereits abgeschlossene Legs bleiben gespeichert. Darts des unvollständigen Legs werden verworfen.'))return;
  s.visits=[];s.turn=[];s.phase='finished';s.finishedAt=new Date().toISOString();s.finishedReason='manual';
- save();showGameState();
+ gameMarkAttempt=false;updateAttemptToggle();save();showGameState();
  toast('Match beendet. Alle fertigen Legs gespeichert.');
 }
 $('#endMatchAfterLeg').addEventListener('click',endMatch);
@@ -647,8 +686,7 @@ function renderGame(){
   return `<div class="dart-slot ${current?'current':''} ${dart?'':'empty'}"><small>DART ${i+1}</small><strong>${dart?escapeHTML(dart.segment):current?'↗':'–'}</strong></div>`;
  }).join('');
  const advice=adviceFor(remaining,available,s.mode);
- $('#checkoutAdvisor').hidden=advice.kind!=='checkout';
- $('#adviceType').textContent='CHECKOUT-MÖGLICHKEIT';
+ $('#adviceType').textContent=advice.kind==='checkout'?'CHECKOUT-MÖGLICHKEIT':'CHECKOUT-ASSISTENT';
  $('#adviceHeading').textContent=advice.headline;
  $('#adviceText').textContent=advice.text;
  $('#adviceDarts').textContent=`${available} ${available===1?'Dart':'Darts'} übrig`;
@@ -663,7 +701,6 @@ function renderGame(){
     <div><strong class="${v.bust?'bust':''}">${v.bust?'BUST':v.score}</strong></div></div>`
  ).join(''):'<p class="empty">Die ersten Darts warten auf dich.</p>';
  $('#undoGame').disabled=!s.turn.length&&!s.visits.length;
- $('#undoGameQuick').disabled=$('#undoGame').disabled;
 }
 function renderGameFinish(){
  const s=activeSession;if(!s)return;
@@ -727,7 +764,6 @@ function startTraining(){
 $('#startTraining').addEventListener('click',startTraining);
 function addTrainingDart(segment){
  if(!activeTraining||!validSegment(segment))return;
- playTap();
  activeTraining.darts.push({segment,points:POINTS[segment],checkoutAttempt:false});
  if(activeTraining.darts.length>=activeTraining.goal){finishTraining(false);return}
  save();renderTraining();
@@ -799,8 +835,8 @@ function renderProfile(){
  $('#statLegs').textContent=s.games.length;
  $('#statAverage').textContent=numberFormat(s.avg);
  $('#statFirst9').textContent=s.first9Count?numberFormat(s.first9):'–';
- $('#statCheckoutRate').textContent=String(s.wins);
- $('#checkoutAttemptSummary').textContent='Erfolgreiche Finishes (ohne Versuchserfassung)';
+ $('#statCheckoutRate').textContent=s.attempts?`${numberFormat(s.wins/s.attempts*100)} %`:'–';
+ $('#checkoutAttemptSummary').textContent=`${s.wins} von ${s.attempts} markierten Versuchen`;
  $('#stat180').textContent=s.visits.filter(v=>v.score===180).length;
  $('#stat140').textContent=s.visits.filter(v=>v.score>=140).length;
  $('#stat100').textContent=s.visits.filter(v=>v.score>=100).length;
@@ -957,7 +993,9 @@ function renderCheckouts(){
  }).sort((a,b)=>new Date(b.date)-new Date(a.date));
  const finishes={};for(const item of list)finishes[item.finish]=(finishes[item.finish]||0)+1;
  const top=Object.entries(finishes).sort((a,b)=>b[1]-a[1]).slice(0,5);
- const summary='<p class="caption">Erfolgreiche Checkouts. Eine Checkout-Quote wird ohne Erfassung aller Fehlversuche bewusst nicht berechnet.</p>';
+ const attempts=statSet().attempts;
+ const summary=attempts?`<p class="caption">${list.length} erfolgreiche Checkouts aus ${attempts} markierten Checkout-Darts. Die Quote berücksichtigt nur markierte Versuche (auch Fehlwürfe).</p>`:
+ '<p class="caption">Für eine verlässliche Quote markiere auch Checkout-Fehlversuche bei der Eingabe.</p>';
  $('#checkoutStats').innerHTML=summary+(list.length?
   `<p class="caption"><strong>Häufigste Finish-Felder:</strong> ${top.map(([name,count])=>`${escapeHTML(name)} ${count}×`).join(' · ')}</p>`+
   list.slice(0,12).map(item=>`<div class="checkout-item"><div><strong>${item.checkout} Punkte</strong><small style="display:block;margin-top:3px">${escapeHTML(dayLabel(localDay(item.date)||'2000-01-01'))} · ${item.darts} Dart(s) in der Aufnahme</small></div><div><strong>${escapeHTML(item.finish)}</strong><small style="display:block">letzter Dart</small></div></div>`).join('')
@@ -1069,10 +1107,10 @@ $('#deleteAll').addEventListener('click',()=>{
  if(!confirm('Wirklich ALLE Legs, Trainings und Statistiken löschen? Die Daten sind ohne Backup unwiederbringlich verloren.'))return;
  db={version:4,games:[],matches:[],sessions:[],trainings:[],activeSessionId:null,activeTraining:null};
  activeSession=null;activeTraining=null;completedTraining=null;
- save();showGameState();showTrainingState();renderProfile();toast('Alle Daten gelöscht.');
+ initAudioControls();save();showGameState();showTrainingState();renderProfile();toast('Alle Daten gelöscht.');
 });
 if('serviceWorker' in navigator){
  window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js',{scope:'./'}).catch(e=>console.warn('Offline-Cache konnte nicht gestartet werden',e)));
 }
 window.addEventListener('resize',()=>{if(activePage==='profileView')renderAverageChart()});
-save();showGameState();showTrainingState();renderProfile();
+initAudioControls();save();showGameState();showTrainingState();renderProfile();
