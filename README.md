@@ -1,8 +1,8 @@
-# OCHE – Dart Companion (PWA) Version 2
+# OCHE – Dart Companion (PWA) Version 3
 
 Offlinefähige Dart-App ohne Backend und ohne App-Store. HTML, CSS und Vanilla JavaScript.
 
-## Neu in Version 2
+## Neu in Version 3
 - X01-Leg: 301, 501, 701, 901 und 1001 / Double-, Straight-, Master-Out.
 - Darts einzeln erfassen, Felder **von 1 bis 20 sortiert**.
 - **Automatischer Wechsel** zum nächsten Dart und automatischer Abschluss einer Aufnahme nach dem dritten Dart.
@@ -34,9 +34,24 @@ Hinweis: Über `file://` funktioniert der Service Worker nicht. Zum lokalen Test
 - **Training:** Tatsächlich getroffene Segmente, nicht nur die Ziel-Treffer, werden aufgeschrieben. Spiel-Average wird nur aus X01-Legs ermittelt. Trefferstatistik lässt sich auf Training/X01/Alle filtern.
 
 ## Wichtige Einschränkungen
-- Ein Spieler; X01 zählt einzelne Legs, keine Best-of-Matches und kein Mehrspieler.
+- Ein eigener Profilspieler plus optional **ein Gast pro X01-Leg**. Keine Benutzerkonten und keine Best-of-Matches.
 - Kein automatisches Scoring per Kamera.
 - Keine Cloud-Synchronisation zwischen iPhone und PC; lokale Browserdaten können gelöscht werden.
 - Checkout-Empfehlungen sind Vorschläge, kein vollständiges Ranking für alle Spielerpräferenzen.
 - Die App selbst ist ohne laufenden Backend-Server verwendbar, aber die statischen Dateien müssen einmalig online geladen und gecacht werden.
 - Regelmäßig im Profil **Backup exportieren**.
+
+
+## Version 3: Zweiter Gastspieler
+- Im Spielstart zwischen „Alleine spielen“ und „Gegen einen Gast spielen“ wählen. Name und Startspieler optional anpassen.
+- Bei Gastmodus werden nach **jeder automatisch abgeschlossenen Aufnahme** die beiden Spieler gewechselt (auch bei Bust).
+- Beide haben getrennte Restpunkte, Average und Wurfverläufe. Die Checkout-Empfehlung bezieht sich immer auf die Person am Zug.
+- Über „Letzten Dart zurück“ wird bei Bedarf automatisch zur vorherigen Person zurückgesprungen.
+- Sobald jemand checkt, endet das Leg. Der Gewinner wird angezeigt und das Ergebnis lokal gespeichert.
+- Im gemeinsamen Spiel werden Gastaufnahmen **nur** im Match-Verlauf gespeichert. **Profil, Average, First 9, Checkout-Quote, Trefferfelder, Tagesstatistik und 180er** verwenden ausschließlich die eigenen Aufnahmen (Rolle `owner`). Verlorene Legs zählen mit den eigenen Darts dennoch für die persönliche Statistik.
+- Alte V1/V2-Daten und laufende Solo-Legs werden beim ersten Start von V3 lokal übernommen. Alte `localStorage`-Schlüssel bleiben unberührt.
+- Backups aus V1/V2 und V3 können importiert werden. Das Exportformat von V3 enthält Matches und Gastdaten für die Spielhistorie; der Gast hat kein Profil.
+
+## Kurztest ohne Zusatzbibliotheken
+
+`node tests/smoke-tests.cjs` prüft Spielerwechsel, Checkout, Gast-Sieg, Ausschluss der Gastwürfe aus Profilstatistiken, Rückgängig, Migration und Solo-Modus.

@@ -118,3 +118,24 @@ h2{font-size:19px;line-height:1.3;letter-spacing:-.5px;margin:0;font-weight:780}
 .hit-stat{grid-template-columns:112px 1fr 47px}
 .hit-field{min-width:0}.hit-field small{display:block;color:var(--muted);font-size:9px;margin-top:3px}
 @media(max-width:350px){.hit-stat{grid-template-columns:97px 1fr 38px;gap:5px}.hit-field small{font-size:8px}}
+
+/* Gastmodus / 2-Spieler-X01 */
+.match-kind-wrap{border-top:1px solid var(--line);margin-top:18px;padding-top:17px}
+.guest-options{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+.field input{width:100%;min-width:0;color:var(--text);background:var(--panel2);border:1px solid #334258;border-radius:11px;padding:13px 11px;font-size:13px;font-weight:650}
+.field input::placeholder{color:#7f90a7}
+.player-cards{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:12px}
+.player-cards.solo{grid-template-columns:1fr}
+.player-card{background:var(--panel);border:1px solid var(--line);padding:13px 14px;border-radius:15px;min-width:0;transition:border-color .16s,background .16s}
+.player-card.is-active{background:#25372d;border-color:var(--lime);box-shadow:inset 0 0 0 1px #d6fa451c}
+.player-card .player-top{display:flex;justify-content:space-between;align-items:center;gap:8px;min-width:0}
+.player-card .player-name{font-weight:850;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.player-card .player-role{font-size:8px;color:var(--muted);letter-spacing:.6px;text-transform:uppercase;white-space:nowrap}
+.player-card.is-active .player-role{color:var(--lime)}
+.player-card .player-score{font-size:38px;font-weight:900;line-height:1.1;font-variant-numeric:tabular-nums;letter-spacing:-1.2px;margin-top:8px}
+.player-card .player-sub{font-size:10px;color:var(--muted);margin-top:5px}
+.turn-banner{margin-bottom:11px;border:1px solid #2f4938;background:#14271f;color:var(--lime);padding:10px 13px;border-radius:12px;font-size:12px;font-weight:850;text-align:center}
+.player-cards.solo + .turn-banner{display:none}
+.visit-player{display:inline-block;color:var(--lime);font-weight:800;font-size:10px;margin-left:5px}
+.visit-player.guest{color:#c7b1ff}
+@media(max-width:360px){.guest-options{grid-template-columns:1fr}.player-card{padding:11px 10px}.player-card .player-score{font-size:32px}.player-card .player-top{flex-wrap:wrap}}

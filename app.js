@@ -2,7 +2,7 @@
 'use strict';
 const $=(sel,scope=document)=>scope.querySelector(sel);
 const $$=(sel,scope=document)=>Array.from(scope.querySelectorAll(sel));
-const STORAGE_KEY='oche-dart-data-v2', LEGACY_KEY='oche-dart-data-v1';
+const STORAGE_KEY='oche-dart-data-v3', PREVIOUS_KEY='oche-dart-data-v2', LEGACY_KEY='oche-dart-data-v1';
 const NUMBERS=Array.from({length:20},(_,i)=>i+1);
 const VALID_MODES=['double','straight','master'];
 const TARGETS=[
@@ -62,19 +62,68 @@ function normalizeTraining(raw){
   startedAt:typeof raw.startedAt==='string'?raw.startedAt:new Date().toISOString(),
   completedAt:typeof raw.completedAt==='string'?raw.completedAt:new Date().toISOString(),darts};
 }
+// Spielmodell V3: chronologische Aufnahmen mit eindeutiger Rolle "owner"/"guest".
+// Der Profil-Selektor gibt ausschließlich die Aufnahmen der Rolle "owner" zurück.
+function normalizeMatch(raw){
+ if(!raw||typeof raw!=='object'||!Array.isArray(raw.visits))return null;
+ const start=[301,501,701,901,1001].includes(Number(raw.start))?Number(raw.start):501;
+ const hasGuest=!!raw.hasGuest;
+ const guestName=String(raw.guestName||'Gast').trim().slice(0,28)||'Gast';
+ const scoreState={owner:start,guest:start},visitCount={owner:0,guest:0};
+ const visits=[];
+ for(const v of raw.visits.slice(0,10000)){
+  const player=v?.player==='guest'&&hasGuest?'guest':'owner';
+  const darts=(Array.isArray(v?.darts)?v.darts:[]).slice(0,3).map(normalizeDart).filter(Boolean);
+  if(!darts.length)continue;
+  const bust=!!v.bust,score=bust?0:darts.reduce((n,d)=>n+d.points,0);
+  const remainingBefore=scoreState[player];
+  if(score>remainingBefore)continue;
+  scoreState[player]-=score;
+  visits.push({player,number:++visitCount[player],darts,bust,score,remainingBefore,
+   checkout:!!v.checkout});
+ }
+ const winner=(raw.winner==='owner'||(hasGuest&&raw.winner==='guest'))?raw.winner:null;
+ return {id:typeof raw.id==='string'||typeof raw.id==='number'?raw.id:makeId(),
+  start,mode:VALID_MODES.includes(raw.mode)?raw.mode:'double',hasGuest,guestName,
+  startedAt:typeof raw.startedAt==='string'?raw.startedAt:new Date().toISOString(),
+  completedAt:typeof raw.completedAt==='string'?raw.completedAt:null,
+  activePlayer:hasGuest&&raw.activePlayer==='guest'?'guest':'owner',
+  visits,turn:Array.isArray(raw.turn)?raw.turn.slice(0,2).map(normalizeDart).filter(Boolean):[],winner};
+}
+function oldActiveToMatch(raw){
+ const old=normalizeGame({...raw,finished:false,checkout:false});
+ if(!old)return null;
+ return normalizeMatch({id:old.id,start:old.start,mode:old.mode,startedAt:old.startedAt,
+  hasGuest:false,visits:old.visits.map(v=>({...v,player:'owner'})),
+  turn:Array.isArray(raw.turn)?raw.turn:[],winner:null,activePlayer:'owner'});
+}
+function ownGameFromMatch(match){
+ // Zentraler Filter: Weder Gastaufnahmen noch Gast-Checkout-Versuche verlassen diese Funktion.
+ return {id:match.id,start:match.start,mode:match.mode,startedAt:match.startedAt,
+  completedAt:match.completedAt,visits:match.visits.filter(v=>v.player==='owner'),
+  checkout:match.winner==='owner',finished:true,
+  opponent:match.hasGuest?match.guestName:null,winner:match.winner};
+}
+function profileGames(){
+ return [...db.games,...db.matches.filter(m=>!!m.winner).map(ownGameFromMatch)];
+}
+function matchVisits(match,player){return match.visits.filter(v=>v.player===player)}
+function matchRemaining(match,player){return match.start-matchVisits(match,player).reduce((sum,v)=>sum+v.score,0)}
+function playerLabel(match,player){return player==='owner'?'Du':match.guestName}
+function nextPlayer(match,player){return match.hasGuest?(player==='owner'?'guest':'owner'):'owner'}
+function matchPlayerView(match,player){return {visits:matchVisits(match,player)}}
+
 function normalizeData(raw){
- const base={version:2,games:[],trainings:[],activeGame:null,activeTraining:null};
+ const base={version:3,games:[],matches:[],trainings:[],activeGame:null,activeTraining:null};
  if(!raw||typeof raw!=='object')return base;
  if(Array.isArray(raw.games))base.games=raw.games.slice(0,10000).map(normalizeGame).filter(g=>g&&g.finished);
+ if(Array.isArray(raw.matches))base.matches=raw.matches.slice(0,10000).map(normalizeMatch).filter(m=>m&&m.winner);
  if(Array.isArray(raw.trainings))base.trainings=raw.trainings.slice(0,10000).map(normalizeTraining).filter(Boolean);
  if(raw.activeGame&&Array.isArray(raw.activeGame.turn)){
-  const g=normalizeGame({...raw.activeGame,finished:false,checkout:false});
-  if(g){
-   g.turn=raw.activeGame.turn.slice(0,2).map(normalizeDart).filter(Boolean);
-   g.remaining=Number.isFinite(+raw.activeGame.remaining)?+raw.activeGame.remaining:g.remaining;
-   g.finished=false;g.checkout=false;
-   base.activeGame=g;
-  }
+  base.activeGame=Array.isArray(raw.activeGame.visits)&&
+   (raw.activeGame.hasGuest!==undefined||raw.version>=3)
+   ?normalizeMatch({...raw.activeGame,winner:null})
+   :oldActiveToMatch(raw.activeGame);
  }
  if(raw.activeTraining&&TARGETS.includes(raw.activeTraining.target)&&Array.isArray(raw.activeTraining.darts)){
   const t=normalizeTraining(raw.activeTraining);
@@ -85,7 +134,7 @@ function normalizeData(raw){
 function readData(){
  let raw=null;
  try{
-  const old=localStorage.getItem(STORAGE_KEY)||localStorage.getItem(LEGACY_KEY);
+  const old=localStorage.getItem(STORAGE_KEY)||localStorage.getItem(PREVIOUS_KEY)||localStorage.getItem(LEGACY_KEY);
   if(old)raw=JSON.parse(old);
  }catch(e){console.warn('Speicher kann nicht gelesen werden',e)}
  return normalizeData(raw);
@@ -96,6 +145,7 @@ let activeTraining=db.activeTraining;
 let completedGame=null,completedTraining=null,activePage='gameView',hitSort='count';
 let gameMarkAttempt=false,toastTimer=null;
 function save(){
+ db.version=3;
  db.activeGame=activeGame;
  db.activeTraining=activeTraining;
  try{localStorage.setItem(STORAGE_KEY,JSON.stringify(db))}
@@ -266,13 +316,20 @@ function showGameState(){
  if(activeGame)renderGame();
  if(completedGame)renderGameFinish();
 }
+function toggleGuestOptions(){
+ const enabled=$('#gameType').value==='guest';
+ $('#guestOptions').hidden=!enabled;
+}
+$('#gameType').addEventListener('change',toggleGuestOptions);
+toggleGuestOptions();
 function startGame(){
  if(activeGame&&!confirm('Das aktuelle Leg verwerfen und neu starten?'))return;
- activeGame={
-  id:makeId(),start:integer($('#startScore').value)||501,
-  remaining:integer($('#startScore').value)||501,mode:$('#outMode').value,
-  startedAt:new Date().toISOString(),completedAt:null,visits:[],turn:[],finished:false,checkout:false
- };
+ const hasGuest=$('#gameType').value==='guest';
+ activeGame={id:makeId(),start:integer($('#startScore').value)||501,
+  mode:$('#outMode').value,startedAt:new Date().toISOString(),completedAt:null,
+  hasGuest,guestName:String($('#guestName').value||'Gast').trim().slice(0,28)||'Gast',
+  activePlayer:hasGuest&&$('#firstPlayer').value==='guest'?'guest':'owner',
+  visits:[],turn:[],winner:null};
  completedGame=null;gameMarkAttempt=false;updateAttemptToggle();save();showGameState();
 }
 $('#startGame').addEventListener('click',startGame);
@@ -285,40 +342,44 @@ function updateAttemptToggle(){
 $('#attemptToggle').addEventListener('click',()=>{gameMarkAttempt=!gameMarkAttempt;updateAttemptToggle()});
 function addGameDart(segment){
  if(!activeGame||!validSegment(segment))return;
+ const g=activeGame,player=g.activePlayer;
  const dart={segment,points:POINTS[segment],checkoutAttempt:gameMarkAttempt};
  gameMarkAttempt=false;updateAttemptToggle();
- const current=activeGame.remaining-activeGame.turn.reduce((s,d)=>s+d.points,0);
+ const current=matchRemaining(g,player)-g.turn.reduce((s,d)=>s+d.points,0);
  const next=current-dart.points;
- if(next===0&&allowedFinisher(segment,activeGame.mode))dart.checkoutAttempt=true;
- activeGame.turn.push(dart);
- const bust=next<0||(next===0&&!allowedFinisher(segment,activeGame.mode))||
-  (next===1&&activeGame.mode!=='straight');
- if(bust){finalizeVisit(true,false);toast('Bust – Aufnahme zählt 0 Punkte.');return}
+ if(next===0&&allowedFinisher(segment,g.mode))dart.checkoutAttempt=true;
+ g.turn.push(dart);
+ const bust=next<0||(next===0&&!allowedFinisher(segment,g.mode))||
+  (next===1&&g.mode!=='straight');
+ if(bust){finalizeVisit(true,false);toast(`${playerLabel(g,player)}: Bust – 0 Punkte.`);return}
  if(next===0){finalizeVisit(false,true);return}
- if(activeGame.turn.length>=3){finalizeVisit(false,false);return}
+ if(g.turn.length>=3){finalizeVisit(false,false);return}
  save();renderGame();
 }
 function finalizeVisit(bust,checkout){
  const g=activeGame;if(!g||!g.turn.length)return;
- const darts=g.turn.map(d=>({...d}));
- const score=bust?0:darts.reduce((s,d)=>s+d.points,0);
- g.visits.push({number:g.visits.length+1,darts,score,bust,checkout,remainingBefore:g.remaining});
- if(!bust)g.remaining-=score;
+ const player=g.activePlayer,darts=g.turn.map(d=>({...d})),
+  score=bust?0:darts.reduce((sum,d)=>sum+d.points,0);
+ g.visits.push({player,number:matchVisits(g,player).length+1,darts,score,bust,checkout,
+  remainingBefore:matchRemaining(g,player)});
  g.turn=[];
  if(checkout){
-  g.finished=true;g.checkout=true;g.completedAt=new Date().toISOString();
-  const complete=normalizeGame(g);
-  db.games.push(complete);completedGame=complete;activeGame=null;
-  toast(`Checkout! ${g.start}er-Leg beendet.`);
+  g.winner=player;g.completedAt=new Date().toISOString();
+  const complete=normalizeMatch(g);
+  db.matches.push(complete);completedGame=complete;activeGame=null;
+  toast(`${playerLabel(g,player)} gewinnt das Leg!`);
+ }else{
+  g.activePlayer=nextPlayer(g,player);
+  gameMarkAttempt=false;updateAttemptToggle();
  }
  save();showGameState();
 }
 function undoGameDart(){
  if(!activeGame)return;
- if(activeGame.turn.length){activeGame.turn.pop()}
+ if(activeGame.turn.length)activeGame.turn.pop();
  else if(activeGame.visits.length){
   const last=activeGame.visits.pop();
-  activeGame.remaining=last.remainingBefore;
+  activeGame.activePlayer=last.player;
   activeGame.turn=last.darts.slice(0,-1);
  }else{toast('Noch kein Dart zum Rückgängigmachen.');return}
  gameMarkAttempt=false;updateAttemptToggle();save();renderGame();
@@ -326,57 +387,77 @@ function undoGameDart(){
 $('#undoGame').addEventListener('click',undoGameDart);
 $('#undoCheckout').addEventListener('click',()=>{
  if(!completedGame)return;
- const g=normalizeGame(completedGame),last=g.visits.pop();
+ const m=normalizeMatch(completedGame),last=m.visits.pop();
  if(!last)return;
- g.remaining=last.remainingBefore;g.turn=last.darts.slice(0,-1);g.finished=false;g.checkout=false;g.completedAt=null;
- db.games=db.games.filter(v=>v.id!==g.id);completedGame=null;activeGame=g;
- save();showGameState();toast('Checkout zurückgenommen.');
+ m.turn=last.darts.slice(0,-1);m.activePlayer=last.player;
+ m.winner=null;m.completedAt=null;
+ db.matches=db.matches.filter(v=>v.id!==m.id);
+ completedGame=null;activeGame=m;gameMarkAttempt=false;updateAttemptToggle();
+ save();showGameState();toast('Checkout rückgängig gemacht.');
 });
 $('#abandonGame').addEventListener('click',()=>{
- if(!activeGame||!confirm('Dieses Leg wirklich verwerfen? Nicht abgeschlossene Darts werden nicht in die Statistik übernommen.'))return;
+ if(!activeGame||!confirm('Dieses Leg wirklich verwerfen? Die Aufnahmen dieses Legs werden nicht in die Statistik übernommen.'))return;
  activeGame=null;gameMarkAttempt=false;save();showGameState();toast('Leg verworfen.');
 });
 function renderGame(){
- const g=activeGame;if(!g)return;
- const pending=g.turn.reduce((s,d)=>s+d.points,0);
- const remaining=g.remaining-pending,available=3-g.turn.length;
- $('#remainingScore').textContent=remaining;
- $('#scoreProgress').style.width=`${Math.max(0,Math.min(100,(1-remaining/g.start)*100))}%`;
- const mode={double:'Double Out',straight:'Straight Out',master:'Master Out'}[g.mode];
- $('#matchMode').textContent=`${g.start} · ${mode}`;
- $('#scoreSubline').textContent=`Aufnahme ${g.visits.length+1} · Dart ${g.turn.length+1} von 3`;
- const provisionalPoints=visitPoints(g)+pending;
- const thrown=gameDartCount(g)+g.turn.length;
- $('#gameAvg').textContent=numberFormat(thrown?provisionalPoints/thrown*3:0);
- $('#gameDarts').textContent=thrown;
- $('#gameBest').textContent=g.visits.length?Math.max(...g.visits.map(v=>v.score)):'–';
- $('#turnTotal').textContent=`${pending} Punkte`;
- $('#turnIndex').textContent=`${g.turn.length+1} / 3`;
- $('#dartSlots').innerHTML=NUMBERS.slice(0,3).map((_,i)=>{
-  const dart=g.turn[i],current=i===g.turn.length;
-  return `<div class="dart-slot ${current?'current':''} ${dart?'':'empty'}">
-    <small>DART ${i+1}</small><strong>${dart?escapeHTML(dart.segment):current?'↗':'–'}</strong>
-    </div>`;
+ const m=activeGame;if(!m)return;
+ const player=m.activePlayer,own=player==='owner',pview=matchPlayerView(m,player),
+  pending=m.turn.reduce((s,d)=>s+d.points,0),remaining=matchRemaining(m,player)-pending,
+  available=3-m.turn.length;
+ $('#playerCards').classList.toggle('solo',!m.hasGuest);
+ const cards=m.hasGuest?['owner','guest']:['owner'];
+ $('#playerCards').innerHTML=cards.map(role=>{
+  const score=matchRemaining(m,role)-(role===player?pending:0),view=matchPlayerView(m,role),
+   darts=gameDartCount(view),avg=darts?visitPoints(view)/darts*3:0;
+  return `<div class="player-card ${role===player?'is-active':''}" ${role===player?'aria-current="true"':''}>
+    <div class="player-top"><strong class="player-name">${escapeHTML(playerLabel(m,role))}</strong>
+    <span class="player-role">${role===player?'● AM ZUG':role==='guest'?'GAST':'DEIN PROFIL'}</span></div>
+    <div class="player-score">${score}</div><div class="player-sub">Ø ${numberFormat(avg)} · ${darts} Darts</div></div>`;
  }).join('');
- const a=adviceFor(remaining,available,g.mode);
+ $('#turnBanner').textContent=`🎯 ${playerLabel(m,player)} ${own?'bist':'ist'} am Zug`;
+ $('#scoreLabel').textContent=own?'DEINE RESTPUNKTE':'RESTPUNKTE GAST';
+ $('#remainingScore').textContent=remaining;
+ $('#scoreProgress').style.width=`${Math.max(0,Math.min(100,(1-remaining/m.start)*100))}%`;
+ const mode={double:'Double Out',straight:'Straight Out',master:'Master Out'}[m.mode];
+ $('#matchMode').textContent=`${m.start} · ${mode}`;
+ $('#scoreSubline').textContent=`${playerLabel(m,player)} · Aufnahme ${pview.visits.length+1} · Dart ${m.turn.length+1}/3`;
+ const thrown=gameDartCount(pview)+m.turn.length;
+ $('#gameAvg').textContent=numberFormat(thrown?(visitPoints(pview)+pending)/thrown*3:0);
+ $('#gameDarts').textContent=thrown;
+ $('#gameBest').textContent=pview.visits.length?Math.max(...pview.visits.map(v=>v.score)):'–';
+ $('#turnHeader').textContent=own?'Deine Darts':`${playerLabel(m,player)} wirft`;
+ $('#turnTotal').textContent=`${pending} Punkte`;
+ $('#turnIndex').textContent=`${m.turn.length+1} / 3`;
+ $('#dartSlots').innerHTML=NUMBERS.slice(0,3).map((_,i)=>{
+  const dart=m.turn[i],current=i===m.turn.length;
+  return `<div class="dart-slot ${current?'current':''} ${dart?'':'empty'}">
+   <small>DART ${i+1}</small><strong>${dart?escapeHTML(dart.segment):current?'↗':'–'}</strong></div>`;
+ }).join('');
+ const a=adviceFor(remaining,available,m.mode);
  $('#adviceType').textContent=a.kind==='checkout'?'CHECKOUT-MÖGLICHKEIT':'CHECKOUT-ASSISTENT';
- $('#adviceHeading').textContent=a.headline;
- $('#adviceText').textContent=a.text;
+ $('#adviceHeading').textContent=a.headline;$('#adviceText').textContent=a.text;
  $('#adviceDarts').textContent=`${available} ${available===1?'Dart':'Darts'} übrig`;
  $('#adviceSteps').innerHTML=a.route.length?a.route.map((seg,i)=>
   `<div class="advice-step"><small>DART ${i+1}</small><strong>${escapeHTML(seg)}</strong></div>`).join('<span class="advice-step arrow-step">→</span>'):'<span class="caption">Spiele einen sicheren Dart.</span>';
- $('#visitCounter').textContent=`${g.visits.length} Aufnahmen`;
- $('#visitList').innerHTML=g.visits.length?[...g.visits].reverse().slice(0,8).map(v=>
-  `<div class="visit-item"><div><strong>Aufnahme ${v.number}</strong><small>${v.darts.map(d=>escapeHTML(d.segment)).join(' · ')}</small></div><div><strong class="${v.bust?'bust':''}">${v.bust?'BUST':v.score}</strong></div></div>`
+ $('#visitCounter').textContent=`${m.visits.length} Aufnahmen`;
+ $('#visitList').innerHTML=m.visits.length?[...m.visits].reverse().slice(0,10).map(v=>
+  `<div class="visit-item"><div><strong>Aufnahme ${v.number}</strong>
+    <span class="visit-player ${v.player==='guest'?'guest':''}">${escapeHTML(playerLabel(m,v.player))}</span>
+    <small>${v.darts.map(d=>escapeHTML(d.segment)).join(' · ')}</small></div>
+    <div><strong class="${v.bust?'bust':''}">${v.bust?'BUST':v.score}</strong></div></div>`
  ).join(''):'<p class="empty">Die ersten Darts warten auf dich.</p>';
- $('#undoGame').disabled=!g.turn.length&&!g.visits.length;
+ $('#undoGame').disabled=!m.turn.length&&!m.visits.length;
 }
 function renderGameFinish(){
- const g=completedGame;if(!g)return;
- const last=g.visits.at(-1);
- $('#finishedAvg').textContent=numberFormat(gameAverage(g));
- $('#finishedDarts').textContent=gameDartCount(g);
- $('#finishedCheckout').textContent=last?last.score:'–';
+ const m=completedGame;if(!m)return;
+ const own=ownGameFromMatch(m),last=m.visits.at(-1),winner=playerLabel(m,m.winner);
+ $('#finishWinnerTitle').textContent=`${winner} ${m.winner==='owner'?'gewinnst':'gewinnt'} das Leg!`;
+ $('#finishWinnerSubtitle').textContent=m.hasGuest?
+  'Nur deine eigenen Darts wurden für dein Profil gespeichert. Die Gastwürfe bleiben getrennt.':
+  'Deine Darts wurden im Profil gespeichert.';
+ $('#finishedAvg').textContent=numberFormat(gameAverage(own));
+ $('#finishedDarts').textContent=gameDartCount(own);
+ $('#finishedCheckout').textContent=last?last.remainingBefore:'–';
 }
 buildKeypad('#gamePad',addGameDart);
 
@@ -459,7 +540,7 @@ populateTargets();
 
 // AUSWERTUNG
 function statSet(){
- const games=db.games;
+ const games=profileGames();
  const visits=games.flatMap(g=>g.visits);
  const gameDarts=visits.flatMap(v=>v.darts);
  const trainDarts=db.trainings.flatMap(t=>t.darts);
@@ -486,7 +567,7 @@ function renderProfile(){
  $('#stat140').textContent=s.visits.filter(v=>v.score>=140).length;
  $('#stat100').textContent=s.visits.filter(v=>v.score>=100).length;
  $('#statBestVisit').textContent=s.visits.length?Math.max(...s.visits.map(v=>v.score)):'–';
- $('#profileIntro').textContent=`${s.totalThrown+s.trainDarts.length} erfasste Darts · ${s.games.length} Legs · ${db.trainings.length} Trainings`;
+ $('#profileIntro').textContent=`${s.totalThrown+s.trainDarts.length} eigene Darts · ${s.games.length} Legs · Gastwürfe ausgeschlossen`;
  renderAverageChart();
  renderHits();
  renderDaily();
@@ -497,7 +578,7 @@ function renderAverageChart(){
  const holder=$('#averageChart');
  const period=$('#avgPeriod').value;
  const minTime=period==='all'?0:Date.now()-Number(period)*24*60*60*1000;
- const games=[...db.games].filter(g=>new Date(g.completedAt).getTime()>=minTime)
+ const games=profileGames().filter(g=>new Date(g.completedAt).getTime()>=minTime)
   .sort((a,b)=>new Date(a.completedAt)-new Date(b.completedAt));
  if(!games.length){holder.innerHTML='<p class="empty">Für diesen Zeitraum gibt es noch keine abgeschlossenen Legs.</p>';return}
  const vals=games.map(gameAverage);
@@ -532,7 +613,7 @@ function sortedSegments(a,b,sort){
 function renderHits(){
  const source=$('#hitSource').value;
  let shots=[];
- if(source!=='training')shots.push(...db.games.flatMap(g=>g.visits.flatMap(v=>v.darts)));
+ if(source!=='training')shots.push(...profileGames().flatMap(g=>g.visits.flatMap(v=>v.darts)));
  if(source!=='game')shots.push(...db.trainings.flatMap(t=>t.darts));
  const counts=new Map();
  for(const d of shots)counts.set(d.segment,(counts.get(d.segment)||0)+1);
@@ -563,7 +644,7 @@ function renderDaily(){
   if(!days.has(day))days.set(day,{games:0,trainings:0,points:0,darts:0,trainingDarts:0,checkout:0,high:0});
   return days.get(day);
  }
- for(const g of db.games){
+ for(const g of profileGames()){
   const row=ensure(localDay(g.completedAt));if(!row)continue;
   row.games++;row.points+=visitPoints(g);row.darts+=gameDartCount(g);
   row.checkout+=Number(g.checkout);
@@ -582,7 +663,7 @@ function renderDaily(){
   </div>`).join(''):'<p class="empty">Deine Tagesstatistik entsteht mit den ersten Spielen.</p>';
 }
 function renderCheckouts(){
- const list=db.games.filter(g=>g.checkout).map(g=>{
+ const list=profileGames().filter(g=>g.checkout).map(g=>{
   const v=g.visits.at(-1);
   return {date:g.completedAt,checkout:v?v.remainingBefore:0,
    darts:v?v.darts.length:0,finish:v?.darts.at(-1)?.segment||'–'};
@@ -599,8 +680,8 @@ function renderCheckouts(){
 }
 function renderHistory(){
  const entries=[
- ...db.games.map(g=>({date:g.completedAt,type:'Leg',title:`${g.start} · ${g.mode==='double'?'Double Out':g.mode==='master'?'Master Out':'Straight Out'}`,
- info:`${gameDartCount(g)} Darts · Best ${Math.max(0,...g.visits.map(v=>v.score))}`,
+ ...profileGames().map(g=>({date:g.completedAt,type:'Leg',title:`${g.start} · ${g.mode==='double'?'Double Out':g.mode==='master'?'Master Out':'Straight Out'}${g.opponent?' · gegen '+g.opponent:''}`,
+ info:`${gameDartCount(g)} eigene Darts · Best ${Math.max(0,...g.visits.map(v=>v.score))}${g.opponent?(g.checkout?' · Sieg':' · Niederlage'):''}`,
  result:numberFormat(gameAverage(g)),sub:'3-DART-AVG'})),
  ...db.trainings.map(t=>{const hits=t.darts.filter(d=>d.segment===t.target).length;return {
   date:t.completedAt,type:'Training',title:`Training ${t.target}`,
@@ -630,7 +711,7 @@ $('#importFile').addEventListener('change',async e=>{
  try{
   if(file.size>8*1024*1024)throw new Error('Backup ist zu groß (max. 8 MB).');
   const raw=JSON.parse(await file.text());
-  if(!raw||!Array.isArray(raw.games)||!(Array.isArray(raw.trainings)||raw.version===undefined))
+  if(!raw||!(Array.isArray(raw.games)||Array.isArray(raw.matches)))
    throw new Error('Unbekanntes Backup-Format.');
   if(!confirm('Dieses Backup ersetzt alle aktuellen Spiele, Trainings und laufenden Sessions. Fortfahren?'))return;
   db=normalizeData(raw);activeGame=db.activeGame;activeTraining=db.activeTraining;
@@ -641,7 +722,7 @@ $('#importFile').addEventListener('change',async e=>{
 });
 $('#deleteAll').addEventListener('click',()=>{
  if(!confirm('Wirklich ALLE Legs, Trainings und Statistiken löschen? Die Daten sind ohne Backup unwiederbringlich verloren.'))return;
- db={version:2,games:[],trainings:[],activeGame:null,activeTraining:null};
+ db={version:3,games:[],matches:[],trainings:[],activeGame:null,activeTraining:null};
  activeGame=null;activeTraining=null;completedGame=null;completedTraining=null;
  save();showGameState();showTrainingState();renderProfile();toast('Alle Daten gelöscht.');
 });

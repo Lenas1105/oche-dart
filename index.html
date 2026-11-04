@@ -42,14 +42,27 @@
             <option value="master">Master Out</option>
           </select></label>
         </div>
+        <div class="match-kind-wrap">
+          <label class="field"><span>SPIELART</span>
+            <select id="gameType"><option value="solo">Alleine spielen</option><option value="guest">Gegen einen Gast spielen</option></select>
+          </label>
+          <div id="guestOptions" class="guest-options" hidden>
+            <label class="field"><span>NAME DES GASTS</span>
+              <input type="text" id="guestName" maxlength="28" placeholder="Gast" autocomplete="off">
+            </label>
+            <label class="field"><span>WER BEGINNT?</span><select id="firstPlayer"><option value="owner">Du</option><option value="guest">Gast</option></select></label>
+          </div>
+        </div>
         <button class="primary-btn wide" id="startGame">Leg starten <span>→</span></button>
-        <p class="caption center">Alle Darts und Aufnahmen werden automatisch gezählt.</p>
+        <p class="caption center">Im Gastmodus wechseln die Spieler nach jeder Aufnahme automatisch. Gastwürfe zählen niemals für dein Profil.</p>
       </div>
 
       <div id="gameActive" hidden>
+        <div id="playerCards" class="player-cards" aria-label="Aktueller Punktestand beider Spieler"></div>
+        <div id="turnBanner" class="turn-banner" aria-live="polite"></div>
         <div class="score-hero">
           <div class="hero-meta"><span class="live-pill"><i></i> LIVE · X01</span><span id="matchMode">501 · Double Out</span></div>
-          <div class="score-center"><p class="score-label">NOCH ZU WERFEN</p><div id="remainingScore" class="big-score">501</div><p id="scoreSubline" class="score-subline">Aufnahme 1 · Dart 1 von 3</p></div>
+          <div class="score-center"><p class="score-label" id="scoreLabel">NOCH ZU WERFEN</p><div id="remainingScore" class="big-score">501</div><p id="scoreSubline" class="score-subline">Aufnahme 1 · Dart 1 von 3</p></div>
           <div class="score-progress"><span id="scoreProgress"></span></div>
           <div class="score-kpis">
             <div><strong id="gameAvg">0,0</strong><small>3-DART-AVG</small></div>
@@ -65,7 +78,7 @@
         </div>
 
         <div class="round-header">
-          <div><p class="eyebrow subtle">AKTUELLE AUFNAHME</p><h2>Deine Darts <span id="turnTotal" class="turn-total">0 Punkte</span></h2></div>
+          <div><p class="eyebrow subtle">AKTUELLE AUFNAHME</p><h2><span id="turnHeader">Deine Darts</span> <span id="turnTotal" class="turn-total">0 Punkte</span></h2></div>
           <span id="turnIndex" class="muted">1 / 3</span>
         </div>
         <div class="dart-slots" id="dartSlots" aria-live="polite"></div>
@@ -84,9 +97,9 @@
 
       <div id="gameFinished" class="panel finish-panel" hidden>
         <span class="finish-symbol">🏆</span>
-        <p class="eyebrow">CHECKOUT!</p><h2>Leg abgeschlossen.</h2>
-        <p class="subtitle">Deine Darts wurden im Profil gespeichert.</p>
-        <div class="finish-stat-row"><div><strong id="finishedAvg">0,0</strong><small>3-DART-AVG</small></div><div><strong id="finishedDarts">0</strong><small>DARTS</small></div><div><strong id="finishedCheckout">0</strong><small>CHECKOUT</small></div></div>
+        <p class="eyebrow">LEG BEENDET</p><h2 id="finishWinnerTitle">Leg abgeschlossen.</h2>
+        <p class="subtitle" id="finishWinnerSubtitle">Nur deine Darts wurden im Profil gespeichert.</p>
+        <div class="finish-stat-row"><div><strong id="finishedAvg">0,0</strong><small>DEIN 3-DART-AVG</small></div><div><strong id="finishedDarts">0</strong><small>DEINE DARTS</small></div><div><strong id="finishedCheckout">0</strong><small>FINISH</small></div></div>
         <button class="primary-btn wide" id="newLeg">Neues Leg spielen <span>→</span></button>
         <button class="ghost-btn wide" id="goProfile">Statistiken ansehen</button>
         <button class="ghost-btn wide" id="undoCheckout">Checkout rückgängig</button>
@@ -132,7 +145,7 @@
       <div class="profile-banner"><div class="profile-avatar">🎯</div><div><h2>Dart Analytics</h2><p id="profileIntro">Dein Fortschritt beginnt mit dem ersten Dart.</p></div></div>
 
       <div class="stat-grid">
-        <div class="stat-box"><small>GESPIELTE LEGS</small><strong id="statLegs">0</strong><span>Abgeschlossene X01-Spiele</span></div>
+        <div class="stat-box"><small>GESPIELTE LEGS</small><strong id="statLegs">0</strong><span>Solo- und Gast-Legs</span></div>
         <div class="stat-box"><small>3-DART-AVERAGE</small><strong id="statAverage">0,0</strong><span>Über alle Legs</span></div>
         <div class="stat-box"><small>FIRST 9 AVG</small><strong id="statFirst9">0,0</strong><span>Erste neun Darts je Leg</span></div>
         <div class="stat-box"><small>CHECKOUT-QUOTE</small><strong id="statCheckoutRate">–</strong><span id="checkoutAttemptSummary">0 von 0 Versuchen</span></div>
@@ -178,7 +191,7 @@
 
       <div class="panel backup-panel">
         <div class="section-header compact"><div><p class="eyebrow subtle">DATENSICHERUNG</p><h3>Deine Daten gehören dir</h3></div></div>
-        <p class="caption">Alle Eingaben werden nur auf diesem Gerät gespeichert. Sichere sie regelmäßig als JSON-Datei. Ohne Backup können die Daten beim Löschen von Website-Daten verloren gehen.</p>
+        <p class="caption">Gastwürfe werden ausschließlich im Spielverlauf gespeichert und niemals in deiner persönlichen Treffer- und Average-Statistik berücksichtigt. Alle Eingaben werden nur auf diesem Gerät gespeichert. Sichere sie regelmäßig als JSON-Datei. Ohne Backup können die Daten beim Löschen von Website-Daten verloren gehen.</p>
         <div class="backup-actions"><button id="exportData2" class="secondary-btn">⇩ Backup exportieren</button><button id="importData" class="secondary-btn">⇧ Backup importieren</button></div>
         <input type="file" id="importFile" accept=".json,application/json" hidden>
         <button id="deleteAll" class="ghost-btn dangerous delete-button">Alle Daten löschen</button>

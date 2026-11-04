@@ -1,7 +1,7 @@
 {
   "name": "OCHE – Dart Companion",
   "short_name": "OCHE",
-  "description": "Dart X01, Checkout-Hilfe, Trainingsmodus und umfangreiche Statistiken. Offline nutzbar.",
+  "description": "Dart X01 mit Gastspieler, Checkout-Hilfe, Trainingsmodus und umfangreiche Statistiken. Offline nutzbar.",
   "id": "./",
   "start_url": "./",
   "scope": "./",
