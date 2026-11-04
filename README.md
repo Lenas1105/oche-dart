@@ -60,3 +60,6 @@ Das Skript prüft Gast-Trennung, drei Spieler, automatische Wechsel, Legs-/Sets-
 ## Technische Grenzen
 
 Alle Daten liegen lokal im Browser. Bei sehr vielen Teilnehmern oder extrem langer Matchhistorie wird der verfügbare Gerätespeicher irgendwann eine praktische Grenze setzen. Eine gesonderte Konten- oder Online-Multiplayer-Funktion ist nicht enthalten. Die Browseroberfläche wurde mit Chromium und Programmlogiktests geprüft; ein Test auf einem echten iPhone ist noch sinnvoll.
+
+## Update 4.1: Versehentliches Zoom durch Doppel-Tippen verhindern
+Auf dem iPhone verhindert `touch-action: manipulation` das Double-Tap-Zoom auf der App-Oberfläche. Scrollen und bewusster Pinch-Zoom bleiben erhalten. Die Service-Worker-Cache-Version wurde erhöht, damit das Update ausgerollt wird.

@@ -1,4 +1,4 @@
-const CACHE_NAME='oche-dart-offline-v4-20261104';
+const CACHE_NAME='oche-dart-offline-v4-1-20261104';
 const CORE=['./','./index.html','./styles.css','./app.js','./manifest.webmanifest',
             './icon.svg','./apple-touch-icon.png','./icon-192.png','./icon-512.png'];
 self.addEventListener('install',event=>{
