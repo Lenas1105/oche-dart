@@ -31,37 +31,60 @@
       </div>
 
       <div id="gameSetup" class="panel setup-panel">
-        <div class="panel-heading"><div><p class="eyebrow subtle">NEUES LEG</p><h2>Bereit für die Oche?</h2></div><span class="mini-icon">↗</span></div>
+        <div class="panel-heading"><div><p class="eyebrow subtle">NEUES MATCH</p><h2>Wer steht an der Oche?</h2></div><span class="mini-icon">✦</span></div>
         <div class="two-fields">
           <label class="field"><span>STARTPUNKTE</span><select id="startScore">
             <option>501</option><option>301</option><option>701</option><option>901</option><option>1001</option>
           </select></label>
           <label class="field"><span>CHECKOUT-REGEL</span><select id="outMode">
-            <option value="double">Double Out</option>
-            <option value="straight">Straight Out</option>
-            <option value="master">Master Out</option>
+            <option value="double">Double Out</option><option value="straight">Straight Out</option><option value="master">Master Out</option>
           </select></label>
         </div>
-        <div class="match-kind-wrap">
-          <label class="field"><span>SPIELART</span>
-            <select id="gameType"><option value="solo">Alleine spielen</option><option value="guest">Gegen einen Gast spielen</option></select>
-          </label>
-          <div id="guestOptions" class="guest-options" hidden>
-            <label class="field"><span>NAME DES GASTS</span>
-              <input type="text" id="guestName" maxlength="28" placeholder="Gast" autocomplete="off">
-            </label>
-            <label class="field"><span>WER BEGINNT?</span><select id="firstPlayer"><option value="owner">Du</option><option value="guest">Gast</option></select></label>
+        <div class="setup-divider"></div>
+        <div class="setup-section-title"><div><p class="eyebrow subtle">TEILNEHMER</p><h3>Spieleraufstellung</h3></div><span id="playerSetupCount" class="little-pill">1 Spieler</span></div>
+        <div id="setupPlayers" class="setup-players">
+          <div class="setup-player owner-player"><span class="player-number">01</span><span class="setup-player-main"><strong>Du</strong><small>Dein Profil · persönliche Statistik</small></span><span class="owner-tag">PROFIL</span></div>
+        </div>
+        <button type="button" id="addGuest" class="add-guest-btn"><span class="add-guest-symbol">＋</span><span>Weiteren Spieler hinzufügen</span></button>
+        <label class="field first-field"><span>WER BEGINNT DAS ERSTE LEG?</span><select id="firstPlayer"><option value="owner">Du</option></select></label>
+        <div class="setup-divider"></div>
+        <div class="setup-section-title"><div><p class="eyebrow subtle">SPIELLÄNGE</p><h3>Wie lange spielt ihr?</h3></div></div>
+        <div class="format-choices" id="formatChoices" role="group" aria-label="Matchformat">
+          <button type="button" class="format-choice selected" data-format="free"><span class="format-icon">∞</span><strong>Frei</strong><small>Beliebig viele Legs</small></button>
+          <button type="button" class="format-choice" data-format="legs"><span class="format-icon">◎</span><strong>Legs</strong><small>Erster mit X Legs</small></button>
+          <button type="button" class="format-choice" data-format="sets"><span class="format-icon">▥</span><strong>Sets</strong><small>Erster mit X Sets</small></button>
+        </div>
+        <div id="legsFormatOptions" class="format-options" hidden>
+          <label class="field"><span>LEGS ZUM MATCHSIEG</span><select id="legsToWin">
+            <option value="1">1 Leg</option><option value="2">2 Legs</option><option value="3" selected>3 Legs</option><option value="4">4 Legs</option><option value="5">5 Legs</option><option value="6">6 Legs</option><option value="7">7 Legs</option><option value="10">10 Legs</option><option value="15">15 Legs</option><option value="20">20 Legs</option>
+          </select></label>
+        </div>
+        <div id="setsFormatOptions" class="format-options" hidden>
+          <div class="two-fields">
+            <label class="field"><span>SETS ZUM MATCHSIEG</span><select id="setsToWin">
+              <option value="1">1 Set</option><option value="2" selected>2 Sets</option><option value="3">3 Sets</option><option value="4">4 Sets</option><option value="5">5 Sets</option><option value="7">7 Sets</option>
+            </select></label>
+            <label class="field"><span>LEGS ZUM SETSIEG</span><select id="legsPerSet">
+              <option value="1">1 Leg</option><option value="2">2 Legs</option><option value="3" selected>3 Legs</option><option value="4">4 Legs</option><option value="5">5 Legs</option><option value="7">7 Legs</option>
+            </select></label>
           </div>
         </div>
-        <button class="primary-btn wide" id="startGame">Leg starten <span>→</span></button>
-        <p class="caption center">Im Gastmodus wechseln die Spieler nach jeder Aufnahme automatisch. Gastwürfe zählen niemals für dein Profil.</p>
+        <p id="formatExplanation" class="caption format-explanation">Nach jedem Leg entscheidet ihr, ob ihr weiterspielen möchtet.</p>
+        <button class="primary-btn wide launch-btn" id="startGame">Match starten <span>→</span></button>
+        <p class="caption center">Gastwürfe werden nicht in deine persönliche Statistik übernommen. Alle Ergebnisse bleiben offline auf diesem Gerät.</p>
       </div>
 
       <div id="gameActive" hidden>
-        <div id="playerCards" class="player-cards" aria-label="Aktueller Punktestand beider Spieler"></div>
+        <div class="match-overview panel">
+          <div class="match-overview-top"><span class="live-pill"><i></i> MATCH LÄUFT</span><span id="matchRoundLabel" class="round-indicator">LEG 1</span></div>
+          <div class="match-overview-bottom"><div><p class="eyebrow subtle">MATCHSTAND</p><strong id="matchFormatLabel">Freies Spiel</strong></div><span id="matchProgressText" class="match-progress-copy">0 Legs gespielt</span></div>
+        </div>
+        <div class="section-header player-header"><h3>Spielstand</h3><span id="currentPlayerCaption" class="muted">Du bist am Zug</span></div>
+        <div id="playerCards" class="player-cards" aria-label="Punktestand aller Spieler"></div>
+        <p id="playerSwipeHint" class="player-swipe-hint" hidden>↔ Wischen, um weitere Spieler zu sehen</p>
         <div id="turnBanner" class="turn-banner" aria-live="polite"></div>
         <div class="score-hero">
-          <div class="hero-meta"><span class="live-pill"><i></i> LIVE · X01</span><span id="matchMode">501 · Double Out</span></div>
+          <div class="hero-meta"><span class="live-pill"><i></i> X01 · AKTUELL</span><span id="matchMode">501 · Double Out</span></div>
           <div class="score-center"><p class="score-label" id="scoreLabel">NOCH ZU WERFEN</p><div id="remainingScore" class="big-score">501</div><p id="scoreSubline" class="score-subline">Aufnahme 1 · Dart 1 von 3</p></div>
           <div class="score-progress"><span id="scoreProgress"></span></div>
           <div class="score-kpis">
@@ -70,13 +93,11 @@
             <div><strong id="gameBest">–</strong><small>BESTE AUFNAHME</small></div>
           </div>
         </div>
-
         <div class="advisor panel" aria-live="polite">
           <div class="advisor-top"><span class="eyebrow" id="adviceType">CHECKOUT-ASSISTENT</span><span id="adviceDarts" class="pill-outlined">3 Darts übrig</span></div>
           <div class="advice-main"><div><h3 id="adviceHeading">Dein nächster Wurf</h3><p id="adviceText">Empfehlung wird berechnet.</p></div><span class="advisor-icon">↗</span></div>
           <div id="adviceSteps" class="advice-steps"></div>
         </div>
-
         <div class="round-header">
           <div><p class="eyebrow subtle">AKTUELLE AUFNAHME</p><h2><span id="turnHeader">Deine Darts</span> <span id="turnTotal" class="turn-total">0 Punkte</span></h2></div>
           <span id="turnIndex" class="muted">1 / 3</span>
@@ -89,20 +110,30 @@
         </button>
         <div class="action-row">
           <button id="undoGame" class="secondary-btn"><span>↶</span> Letzten Dart zurück</button>
-          <button id="abandonGame" class="ghost-btn dangerous">Leg verwerfen</button>
+          <button id="abandonGame" class="ghost-btn dangerous">Match beenden</button>
         </div>
         <div class="section-header"><h3>Letzte Aufnahmen</h3><span id="visitCounter" class="muted">0 Aufnahmen</span></div>
         <div id="visitList" class="visits-list"></div>
       </div>
 
-      <div id="gameFinished" class="panel finish-panel" hidden>
-        <span class="finish-symbol">🏆</span>
-        <p class="eyebrow">LEG BEENDET</p><h2 id="finishWinnerTitle">Leg abgeschlossen.</h2>
-        <p class="subtitle" id="finishWinnerSubtitle">Nur deine Darts wurden im Profil gespeichert.</p>
-        <div class="finish-stat-row"><div><strong id="finishedAvg">0,0</strong><small>DEIN 3-DART-AVG</small></div><div><strong id="finishedDarts">0</strong><small>DEINE DARTS</small></div><div><strong id="finishedCheckout">0</strong><small>FINISH</small></div></div>
-        <button class="primary-btn wide" id="newLeg">Neues Leg spielen <span>→</span></button>
-        <button class="ghost-btn wide" id="goProfile">Statistiken ansehen</button>
-        <button class="ghost-btn wide" id="undoCheckout">Checkout rückgängig</button>
+      <div id="gameFinished" class="finish-panel" hidden>
+        <div class="leg-finish-hero panel">
+          <span id="finishSymbol" class="finish-symbol">🏆</span>
+          <p id="finishEyebrow" class="eyebrow">LEG ABGESCHLOSSEN</p>
+          <h2 id="finishWinnerTitle">Leg abgeschlossen.</h2>
+          <p class="subtitle" id="finishWinnerSubtitle">Deine Darts wurden gespeichert.</p>
+          <div class="finish-stat-row"><div><strong id="finishedAvg">0,0</strong><small>DEIN 3-DART-AVG</small></div><div><strong id="finishedDarts">0</strong><small>DEINE DARTS</small></div><div><strong id="finishedCheckout">0</strong><small>FINISH</small></div></div>
+        </div>
+        <div class="panel standings-panel"><div class="section-header compact"><div><p class="eyebrow subtle">ZWISCHENSTAND</p><h3 id="standingsHeading">Matchübersicht</h3></div><span id="standingFormat" class="muted">LEGS</span></div><div id="standingsCards" class="standings-cards"></div><p id="standingsNote" class="caption"></p></div>
+        <div id="decisionPanel" class="panel decision-panel"><p class="eyebrow">WIE GEHT'S WEITER?</p><h3 id="decisionTitle">Noch ein Leg?</h3><p class="caption" id="decisionText">Das abgeschlossene Leg ist bereits gespeichert. Ihr könnt jetzt weiterspielen oder das Match beenden.</p>
+          <button class="primary-btn wide" id="nextLeg">Nächstes Leg spielen <span>→</span></button>
+          <button class="secondary-btn wide" id="endMatchAfterLeg">Match jetzt beenden</button>
+        </div>
+        <div id="matchDonePanel" class="panel decision-panel" hidden><p class="eyebrow">MATCH BEENDET</p><h3 id="matchDoneTitle">Match abgeschlossen.</h3><p class="caption">Alle abgeschlossenen Legs sind gespeichert.</p>
+          <button class="primary-btn wide" id="newMatch">Neues Match erstellen <span>→</span></button>
+          <button class="ghost-btn wide" id="goProfile">Mein Profil öffnen</button>
+        </div>
+        <button class="ghost-btn wide quiet-undo" id="undoCheckout">↶ Letzten Checkout korrigieren</button>
       </div>
     </section>
 
@@ -182,6 +213,11 @@
       <div class="panel">
         <div class="section-header compact"><div><p class="eyebrow subtle">FINISHING</p><h3>Checkout-Statistik</h3></div></div>
         <div id="checkoutStats"><p class="empty">Noch keine Checkouts gespeichert.</p></div>
+      </div>
+
+      <div class="panel">
+        <div class="section-header compact"><div><p class="eyebrow subtle">MATCHHISTORIE</p><h3>Deine Matches</h3></div></div>
+        <div id="matchHistory"><p class="empty">Noch keine Matches gespeichert.</p></div>
       </div>
 
       <div class="panel">

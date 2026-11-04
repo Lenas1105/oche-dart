@@ -1,57 +1,62 @@
-# OCHE – Dart Companion (PWA) Version 3
+# OCHE 4.0 – Dart Companion
 
-Offlinefähige Dart-App ohne Backend und ohne App-Store. HTML, CSS und Vanilla JavaScript.
+Offlinefähige Progressive Web App (PWA), programmiert in **HTML, CSS und JavaScript**. Kostenloses statisches Hosting, keine Datenbank und kein eigener Server erforderlich.
 
-## Neu in Version 3
-- X01-Leg: 301, 501, 701, 901 und 1001 / Double-, Straight-, Master-Out.
-- Darts einzeln erfassen, Felder **von 1 bis 20 sortiert**.
-- **Automatischer Wechsel** zum nächsten Dart und automatischer Abschluss einer Aufnahme nach dem dritten Dart.
-- Sofortiger Bust oder Checkout auch schon beim ersten/zweiten Dart; Rückgängig einschließlich letztem Checkout.
-- Restscore mit Fortschrittsbalken, Average und **Checkout-/Stell-Empfehlung**. Die Vorschläge sind heuristisch und keine Erfolgsgarantie.
-- Profil: **exakte Trefferzahlen je Segment** (S1 bis S20, D1 bis D20, T1 bis T20, SB, DB, Miss), sortierbar nach Anzahl oder Zahl.
-- 180er, 140+, 100+, beste Aufnahme, First-9-Average und 3-Dart-Average.
-- Tagesstatistik, Checkout-Quote, erzielte Checkout-Scores und Finish-Felder.
-- Trainingsmodus: Ziel-Segment und Anzahl Darts wählen; tatsächliche Treffer einzeln erfassen; Trefferquote.
-- Spiel- und Trainingshistorie, Datenexport/-import (JSON).
-- Speicherung und Wiederaufnahme laufender Legs/Trainings auf diesem Gerät, Service Worker für Offline-Betrieb.
-- Bestehende Spiele aus der älteren App werden beim ersten Start auf demselben Gerät aus dem früheren Speicherformat übernommen.
+## Was ist neu?
 
-## Auf GitHub Pages veröffentlichen
-1. Alle Dateien aus diesem Ordner in das **Hauptverzeichnis** deines bisherigen GitHub-Repositories `oche-dart` hochladen. Die alten Dateien `index.html`, `styles.css`, `app.js`, `sw.js`, `manifest.webmanifest` und `icon.svg` **ersetzen**. Die neuen PNG-Icons hinzufügen.
-2. Änderungen mit „Commit changes“ speichern.
-3. In Repository → Settings → Pages: Deploy from a branch → main → /(root).
-4. Die veröffentlichte URL in Safari am iPhone aufrufen, bei bestehender Verbindung vollständig laden, danach „Teilen“ → „Zum Home-Bildschirm“.
-5. Die App auf dem Home-Bildschirm starten. Nach dem ersten Online-Aufruf lässt sie sich auch offline öffnen.
+- **Beliebig weitere Gastspieler hinzufügen**: Neben „Du“ kannst du Gäste mit Namen hinzufügen und wieder entfernen. Die Spielerreihenfolge ist die Reihenfolge der Anmeldung.
+- **Alle Spieler bekommen ihre eigenen Restpunkte und Durchschnittswerte**. Die Aufnahme wechselt nach dem dritten Dart oder Bust automatisch zum nächsten Spieler.
+- **Rundum-Ansicht** mit Match- und Punkteständen. Bei mehr als vier Teilnehmern wird die Spielerübersicht horizontal scrollbar und folgt dem aktiven Spieler.
+- **Drei Spielmodi**:
+  1. **Frei**: Beliebig viele Legs, nach jedem Leg entscheiden, ob es weitergeht.
+  2. **Legs**: Erster Spieler mit X gewonnenen Legs gewinnt das Match (z. B. „First to 3“).
+  3. **Sets**: Ein Set gewinnt, wer zuerst Y Legs gewinnt. Das Match gewinnt, wer zuerst X Sets gewinnt (z. B. 2 Sets, jeweils 3 Legs zum Setsieg). Das funktioniert auch bei mehr als zwei Spielern.
+- **Leg-Ende**: Ein Checkout speichert das Leg sofort dauerhaft im lokalen Datenspeicher. Das Match pausiert auf einer übersichtlichen Ergebnisansicht mit „Nächstes Leg“ und „Match jetzt beenden“. Sobald das Spielziel erreicht ist, erscheint der Matchsieger.
+- **Fairer Startspieler**: In den nächsten Legs wandert das Anwurf-Recht automatisch einen Platz weiter.
+- **Match vorzeitig beenden**: Bereits abgeschlossene Legs bleiben erhalten, das unvollständige Leg wird verworfen.
+- **Rückgängig**: Bei laufendem Leg über die Spielerwechsel hinweg, und nach einem Checkout sogar der letzte Checkout (das Leg-Ergebnis wird dazu aus der Statistik zurückgenommen).
+- **Matchhistorie** mit allen Teilnehmern, Leg-/Set-Zwischenstand und Matchstatus.
+- **Nur die eigenen Darts** (Spieler „Du“) werden in der persönlichen Statistik ausgewertet. Gastwürfe bleiben ausschließlich in der Matchhistorie und zählen weder im Training noch für den 3-Dart-Average, First 9, 180er, Checkout-Quote etc.
+- Die vorhandenen Funktionen wie Checkout-Vorschläge, Trefferstatistik nach Segment (T20, S20 usw.), First 9, 180er, 100+, Tagesstatistik und Trainingsmodus bleiben bestehen.
 
-Hinweis: Über `file://` funktioniert der Service Worker nicht. Zum lokalen Testen einen statischen Server verwenden (z. B. `python -m http.server 8080`). Auf iPhone und GitHub Pages muss HTTPS verwendet werden. GitHub Pages bietet HTTPS.
+## Update deiner bestehenden GitHub-Pages-App
 
-## Statistische Definitionen
-- **3-Dart-Average:** Summe der tatsächlich gewerteten Leg-Punkte × 3 / Anzahl aller geworfenen Match-Darts. Bust-Darts zählen als geworfen, Bust-Aufnahme mit 0 Punkten.
-- **First 9 Average:** In jedem Leg die ersten neun geworfenen Match-Darts. Nur Legs mit mindestens neun Darts werden dafür berücksichtigt; Bust-Darts zählen mit 0 gewerteten Punkten.
-- **Hohe Aufnahmen:** Ein Leg-Bust zählt nicht als 100+/140+/180. Kategorien sind inklusiv.
-- **Checkout-Quote:** Erfolgreich beendete Legs geteilt durch die Zahl der explizit als Checkout-Versuch markierten Darts. Ein tatsächlicher Checkout-Dart wird automatisch markiert. **Misses auf ein Checkout-Doppel** bitte vor der Erfassung mit dem Schalter „Diesen Dart als Checkout-Versuch markieren“ kennzeichnen, sonst ist die Quote zu hoch.
-- **Tagesstatistik:** Datum der Leg-/Training-Beendigung in der lokalen Zeitzone des Geräts.
-- **Training:** Tatsächlich getroffene Segmente, nicht nur die Ziel-Treffer, werden aufgeschrieben. Spiel-Average wird nur aus X01-Legs ermittelt. Trefferstatistik lässt sich auf Training/X01/Alle filtern.
+1. **Vorher ein Backup** in OCHE → Profil exportieren (JSON). Bitte die installierte PWA und die Website-Daten nicht löschen.
+2. Dieses ZIP entpacken. Die Dateien `index.html`, `app.js`, `styles.css`, `sw.js`, `manifest.webmanifest`, `icon.svg`, die PNGs und `README.md` müssen direkt in das Hauptverzeichnis deines bisherigen GitHub-Repositories.
+3. GitHub Repository → **Add file → Upload files** → alle Dateien auswählen → **Commit changes**. Gleichnamige Dateien im Hauptverzeichnis ersetzen, neue Dateien ergänzen. Der Ordner `tests` ist nur für Entwickler und muss für die PWA nicht hochgeladen werden.
+4. Unter GitHub → **Actions** prüfen, ob `pages build and deployment` erfolgreich abgeschlossen ist.
+5. Die **bestehende** GitHub-Pages-Adresse in Safari mit Internet öffnen. Bei Bedarf die PWA vollständig schließen und erneut starten, damit der neue Cache übernommen wird.
+6. Die App braucht **keinen App Store** und läuft nach dem ersten Laden auch **offline**. Die bisherigen Daten bleiben unter derselben Website-Adresse normalerweise erhalten.
 
-## Wichtige Einschränkungen
-- Ein eigener Profilspieler plus optional **ein Gast pro X01-Leg**. Keine Benutzerkonten und keine Best-of-Matches.
-- Kein automatisches Scoring per Kamera.
-- Keine Cloud-Synchronisation zwischen iPhone und PC; lokale Browserdaten können gelöscht werden.
-- Checkout-Empfehlungen sind Vorschläge, kein vollständiges Ranking für alle Spielerpräferenzen.
-- Die App selbst ist ohne laufenden Backend-Server verwendbar, aber die statischen Dateien müssen einmalig online geladen und gecacht werden.
-- Regelmäßig im Profil **Backup exportieren**.
+## Speicherung und Datenübernahme
 
+- Aktuelle Daten werden auf dem Gerät in `localStorage` unter `oche-dart-data-v4` gespeichert.
+- Bei erstmaligem Update werden Bestandsdaten aus `oche-dart-data-v3`, `oche-dart-data-v2` und `oche-dart-data-v1` übernommen. Bestehende abgeschlossene Spiele und Trainings bleiben erhalten, ebenso ein laufendes X01-Leg aus einer älteren Version.
+- Neue Matches liegen in `sessions`. Jedes abgeschlossene Leg ist dort mit `winnerId` und allen Würfen pro `playerId` gespeichert. Nur abgeschlossene Legs fließen in die Profil-Auswertung ein. Laufende Legs bleiben als Zwischenstand bis zum nächsten Start bestehen.
+- Die alte Gast-Historie wird weiter ausgewertet, ohne Gastdarts deinem Profil zuzurechnen.
+- In Profil → Backup exportieren/importieren kann die gesamte Match- und Trainingshistorie gesichert werden. Der Import **ersetzt** die aktuellen Daten.
+- Es gibt keine Cloud-Synchronisierung. Wenn iOS oder Safari die Website-Daten löscht, können ohne JSON-Backup Statistiken verloren gehen.
 
-## Version 3: Zweiter Gastspieler
-- Im Spielstart zwischen „Alleine spielen“ und „Gegen einen Gast spielen“ wählen. Name und Startspieler optional anpassen.
-- Bei Gastmodus werden nach **jeder automatisch abgeschlossenen Aufnahme** die beiden Spieler gewechselt (auch bei Bust).
-- Beide haben getrennte Restpunkte, Average und Wurfverläufe. Die Checkout-Empfehlung bezieht sich immer auf die Person am Zug.
-- Über „Letzten Dart zurück“ wird bei Bedarf automatisch zur vorherigen Person zurückgesprungen.
-- Sobald jemand checkt, endet das Leg. Der Gewinner wird angezeigt und das Ergebnis lokal gespeichert.
-- Im gemeinsamen Spiel werden Gastaufnahmen **nur** im Match-Verlauf gespeichert. **Profil, Average, First 9, Checkout-Quote, Trefferfelder, Tagesstatistik und 180er** verwenden ausschließlich die eigenen Aufnahmen (Rolle `owner`). Verlorene Legs zählen mit den eigenen Darts dennoch für die persönliche Statistik.
-- Alte V1/V2-Daten und laufende Solo-Legs werden beim ersten Start von V3 lokal übernommen. Alte `localStorage`-Schlüssel bleiben unberührt.
-- Backups aus V1/V2 und V3 können importiert werden. Das Exportformat von V3 enthält Matches und Gastdaten für die Spielhistorie; der Gast hat kein Profil.
+## Spielregeln und Statistikdetails
 
-## Kurztest ohne Zusatzbibliotheken
+- X01: 301, 501, 701, 901 oder 1001, Straight Out, Double Out oder Master Out. Ein nicht regelkonformer Checkout, Überwerfen oder verbleibende 1 bei Double/Master Out ist ein Bust; die ganze Aufnahme zählt dann 0 Punkte.
+- **Erster Anwurf** wird beim Matchstart gewählt; danach rotiert das Anwurfrecht nach jedem Leg um einen Teilnehmer weiter. Die eigentliche Wurfreihenfolge bleibt während des gesamten Matches gleich.
+- Bei einem Set-Sieg werden die **Leg-Siege innerhalb dieses Sets** auf 0 zurückgesetzt; die gewonnenen Sets und alle Legs insgesamt bleiben erhalten.
+- „Du“ ist immer das Profil. Die Gästeliste ist nur die Teilnehmerliste des aktuellen Matches. Es gibt derzeit keine separaten, dauerhaft speicherbaren Gäste-Profile.
+- Die Checkout-Quote wertet als Versuch markierte Darts aus. Der erfolgreiche Checkout-Dart wird automatisch markiert; fehlgeschlagene Checkout-Darts müssen manuell vor der Eingabe als Checkout-Versuch markiert werden.
+- **First 9** berücksichtigt nur Legs, in denen du tatsächlich neun Darts geworfen hast. Bust-Aufnahmen zählen mit 0 gewerteten Punkten und allen geworfenen Darts.
+- Checkout-Vorschläge sind heuristische Empfehlungen; sie sind keine Garantie für optimale Trefferwahrscheinlichkeit.
 
-`node tests/smoke-tests.cjs` prüft Spielerwechsel, Checkout, Gast-Sieg, Ausschluss der Gastwürfe aus Profilstatistiken, Rückgängig, Migration und Solo-Modus.
+## Entwicklertests
+
+Im Projektverzeichnis:
+
+```sh
+node tests/smoke-tests.cjs
+```
+
+Das Skript prüft Gast-Trennung, drei Spieler, automatische Wechsel, Legs-/Sets-Modus, Undo nach Checkout, PWA-Datenspeicherung, Neustart, V3-Migration und Training. Der JavaScript-Syntaxcheck lautet `node --check app.js`.
+
+## Technische Grenzen
+
+Alle Daten liegen lokal im Browser. Bei sehr vielen Teilnehmern oder extrem langer Matchhistorie wird der verfügbare Gerätespeicher irgendwann eine praktische Grenze setzen. Eine gesonderte Konten- oder Online-Multiplayer-Funktion ist nicht enthalten. Die Browseroberfläche wurde mit Chromium und Programmlogiktests geprüft; ein Test auf einem echten iPhone ist noch sinnvoll.

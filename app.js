@@ -2,7 +2,7 @@
 'use strict';
 const $=(sel,scope=document)=>scope.querySelector(sel);
 const $$=(sel,scope=document)=>Array.from(scope.querySelectorAll(sel));
-const STORAGE_KEY='oche-dart-data-v3', PREVIOUS_KEY='oche-dart-data-v2', LEGACY_KEY='oche-dart-data-v1';
+const STORAGE_KEY='oche-dart-data-v4', PREVIOUS_KEY='oche-dart-data-v3', OLD_V2_KEY='oche-dart-data-v2', LEGACY_KEY='oche-dart-data-v1';
 const NUMBERS=Array.from({length:20},(_,i)=>i+1);
 const VALID_MODES=['double','straight','master'];
 const TARGETS=[
@@ -104,26 +104,120 @@ function ownGameFromMatch(match){
   checkout:match.winner==='owner',finished:true,
   opponent:match.hasGuest?match.guestName:null,winner:match.winner};
 }
-function profileGames(){
- return [...db.games,...db.matches.filter(m=>!!m.winner).map(ownGameFromMatch)];
+// V4: Die Match-Session ist die einzige Quelle der Wahrheit. Ein Checkout wird
+// sofort als abgeschlossenes Leg in derselben Session gesichert. Jede Aufnahme
+// trägt eine feste playerId. Gäste bleiben außerhalb des persönlichen Profils.
+function normaliseSessionVisit(v,players){
+ if(!v||!players.some(p=>p.id===v.playerId))return null;
+ const darts=(Array.isArray(v.darts)?v.darts:[]).slice(0,3).map(normalizeDart).filter(Boolean);
+ if(!darts.length)return null;
+ const bust=!!v.bust;
+ return {playerId:v.playerId,number:Math.max(1,integer(v.number)||1),
+  darts,score:bust?0:darts.reduce((sum,d)=>sum+d.points,0),bust,checkout:!!v.checkout};
 }
-function matchVisits(match,player){return match.visits.filter(v=>v.player===player)}
-function matchRemaining(match,player){return match.start-matchVisits(match,player).reduce((sum,v)=>sum+v.score,0)}
-function playerLabel(match,player){return player==='owner'?'Du':match.guestName}
-function nextPlayer(match,player){return match.hasGuest?(player==='owner'?'guest':'owner'):'owner'}
-function matchPlayerView(match,player){return {visits:matchVisits(match,player)}}
-
+function normalizeSession(raw){
+ if(!raw||!Array.isArray(raw.players)||!raw.players.length)return null;
+ const players=[],used=new Set();
+ for(const p of raw.players){
+  if(!p||typeof p.id!=='string'||!p.id||used.has(p.id))continue;
+  used.add(p.id);
+  players.push({id:p.id,role:p.id==='owner'?'owner':'guest',
+   name:p.id==='owner'?'Du':String(p.name||'Gast').trim().slice(0,28)||'Gast'});
+ }
+ if(!players.some(p=>p.id==='owner'))return null;
+ const format=['free','legs','sets'].includes(raw.format)?raw.format:'free';
+ const completedLegs=(Array.isArray(raw.completedLegs)?raw.completedLegs:[]).map((leg,i)=>{
+  if(!players.some(p=>p.id===leg?.winnerId))return null;
+  const visits=(Array.isArray(leg.visits)?leg.visits:[]).map(v=>normaliseSessionVisit(v,players)).filter(Boolean);
+  return {id:leg.id||makeId(),number:i+1,startedAt:leg.startedAt||raw.startedAt||new Date().toISOString(),
+   completedAt:leg.completedAt||new Date().toISOString(),starterIndex:integer(leg.starterIndex)%players.length,
+   winnerId:leg.winnerId,visits};
+ }).filter(Boolean);
+ const visits=(Array.isArray(raw.visits)?raw.visits:[]).map(v=>normaliseSessionVisit(v,players)).filter(Boolean);
+ const phase=['playing','between','finished'].includes(raw.phase)?raw.phase:'playing';
+ const currentPlayerId=players.some(p=>p.id===raw.currentPlayerId)?raw.currentPlayerId:players[0].id;
+ return {id:raw.id||makeId(),start:[301,501,701,901,1001].includes(+raw.start)?+raw.start:501,
+  mode:VALID_MODES.includes(raw.mode)?raw.mode:'double',format,
+  legsToWin:Math.max(1,Math.min(99,integer(raw.legsToWin)||3)),
+  setsToWin:Math.max(1,Math.min(99,integer(raw.setsToWin)||2)),
+  legsPerSet:Math.max(1,Math.min(99,integer(raw.legsPerSet)||3)),
+  players,firstStarterIndex:Math.max(0,integer(raw.firstStarterIndex))%players.length,
+  starterIndex:Math.max(0,integer(raw.starterIndex))%players.length,
+  currentPlayerId,phase,completedLegs,visits,
+  turn:Array.isArray(raw.turn)?raw.turn.slice(0,2).map(normalizeDart).filter(Boolean):[],
+  startedAt:raw.startedAt||new Date().toISOString(),
+  legStartedAt:raw.legStartedAt||raw.startedAt||new Date().toISOString(),
+  finishedAt:raw.finishedAt||null,finishedReason:raw.finishedReason||null};
+}
+function migrateOldActive(raw){
+ const m=raw.hasGuest!==undefined?normalizeMatch(raw):oldActiveToMatch(raw);
+ if(!m)return null;
+ const guests=m.hasGuest?[{id:'legacy-guest',role:'guest',name:m.guestName}]:[];
+ const players=[{id:'owner',role:'owner',name:'Du'},...guests];
+ const currentPlayerId=m.activePlayer==='guest'&&m.hasGuest?'legacy-guest':'owner';
+ return normalizeSession({id:m.id,start:m.start,mode:m.mode,format:'free',players,
+  firstStarterIndex:0,starterIndex:0,currentPlayerId,
+  phase:'playing',startedAt:m.startedAt,legStartedAt:m.startedAt,completedLegs:[],
+  visits:m.visits.map(v=>({...v,playerId:v.player==='guest'?'legacy-guest':'owner'})),turn:m.turn});
+}
+function sessionStandings(session){
+ const totals=Object.fromEntries(session.players.map(p=>[p.id,0]));
+ const sets=Object.fromEntries(session.players.map(p=>[p.id,0]));
+ const inSet=Object.fromEntries(session.players.map(p=>[p.id,0]));
+ let setNumber=1,lastSetWinnerId=null;
+ for(const leg of session.completedLegs){
+  if(!(leg.winnerId in totals))continue;
+  totals[leg.winnerId]++;inSet[leg.winnerId]++;
+  if(session.format==='sets'&&inSet[leg.winnerId]>=session.legsPerSet){
+   sets[leg.winnerId]++;lastSetWinnerId=leg.winnerId;setNumber++;
+   for(const id of Object.keys(inSet))inSet[id]=0;
+  }else lastSetWinnerId=null;
+ }
+ const targetWinner=session.players.find(p=>session.format==='legs'&&totals[p.id]>=session.legsToWin||
+   session.format==='sets'&&sets[p.id]>=session.setsToWin)?.id||null;
+ return {totals,sets,inSet,setNumber,lastSetWinnerId,targetWinner};
+}
+function sessionLegPlayerVisits(leg,playerId,start){
+ let remaining=start;
+ return leg.visits.filter(v=>v.playerId===playerId).map(v=>{
+  const visit={...v,remainingBefore:remaining};
+  remaining-=v.score;return visit;
+ });
+}
+function ownGameFromSessionLeg(session,leg){
+ const visits=sessionLegPlayerVisits(leg,'owner',session.start);
+ if(!visits.length)return null;
+ const opponents=session.players.filter(p=>p.id!=='owner').map(p=>p.name).join(', ');
+ return {id:leg.id,start:session.start,mode:session.mode,
+  startedAt:leg.startedAt,completedAt:leg.completedAt,visits,
+  checkout:leg.winnerId==='owner',finished:true,opponent:opponents||null,
+  winner:leg.winnerId==='owner'?'owner':'guest',sessionId:session.id};
+}
+function profileGames(){
+ return [...db.games,...db.matches.filter(m=>!!m.winner).map(ownGameFromMatch),
+  ...db.sessions.flatMap(session=>session.completedLegs.map(leg=>ownGameFromSessionLeg(session,leg)).filter(Boolean))];
+}
+function sessionPlayerName(session,id){return session.players.find(p=>p.id===id)?.name||'Spieler'}
+function nextSessionPlayer(session,id){
+ const idx=session.players.findIndex(p=>p.id===id);
+ return session.players[(idx+1)%session.players.length].id;
+}
+function sessionCurrentVisits(session,id){return session.visits.filter(v=>v.playerId===id)}
+function sessionRemaining(session,id){
+ return session.start-sessionCurrentVisits(session,id).reduce((sum,v)=>sum+v.score,0);
+}
 function normalizeData(raw){
- const base={version:3,games:[],matches:[],trainings:[],activeGame:null,activeTraining:null};
+ const base={version:4,games:[],matches:[],sessions:[],trainings:[],activeSessionId:null,activeTraining:null};
  if(!raw||typeof raw!=='object')return base;
  if(Array.isArray(raw.games))base.games=raw.games.slice(0,10000).map(normalizeGame).filter(g=>g&&g.finished);
  if(Array.isArray(raw.matches))base.matches=raw.matches.slice(0,10000).map(normalizeMatch).filter(m=>m&&m.winner);
+ if(Array.isArray(raw.sessions))base.sessions=raw.sessions.map(normalizeSession).filter(Boolean);
  if(Array.isArray(raw.trainings))base.trainings=raw.trainings.slice(0,10000).map(normalizeTraining).filter(Boolean);
- if(raw.activeGame&&Array.isArray(raw.activeGame.turn)){
-  base.activeGame=Array.isArray(raw.activeGame.visits)&&
-   (raw.activeGame.hasGuest!==undefined||raw.version>=3)
-   ?normalizeMatch({...raw.activeGame,winner:null})
-   :oldActiveToMatch(raw.activeGame);
+ if(base.sessions.some(s=>s.id===raw.activeSessionId&&s.phase!=='finished'))
+  base.activeSessionId=raw.activeSessionId;
+ if(!base.sessions.length&&raw.activeGame&&Array.isArray(raw.activeGame.turn)){
+  const old=migrateOldActive(raw.activeGame);
+  if(old){base.sessions.push(old);base.activeSessionId=old.id}
  }
  if(raw.activeTraining&&TARGETS.includes(raw.activeTraining.target)&&Array.isArray(raw.activeTraining.darts)){
   const t=normalizeTraining(raw.activeTraining);
@@ -134,19 +228,19 @@ function normalizeData(raw){
 function readData(){
  let raw=null;
  try{
-  const old=localStorage.getItem(STORAGE_KEY)||localStorage.getItem(PREVIOUS_KEY)||localStorage.getItem(LEGACY_KEY);
-  if(old)raw=JSON.parse(old);
+  const previous=localStorage.getItem(STORAGE_KEY)||localStorage.getItem(PREVIOUS_KEY)||
+   localStorage.getItem(OLD_V2_KEY)||localStorage.getItem(LEGACY_KEY);
+  if(previous)raw=JSON.parse(previous);
  }catch(e){console.warn('Speicher kann nicht gelesen werden',e)}
  return normalizeData(raw);
 }
 let db=readData();
-let activeGame=db.activeGame;
+let activeSession=db.sessions.find(s=>s.id===db.activeSessionId)||null;
 let activeTraining=db.activeTraining;
-let completedGame=null,completedTraining=null,activePage='gameView',hitSort='count';
+let completedTraining=null,activePage='gameView',hitSort='count',setupGuests=[],setupFormat='free';
 let gameMarkAttempt=false,toastTimer=null;
 function save(){
- db.version=3;
- db.activeGame=activeGame;
+ db.version=4;db.activeSessionId=activeSession?.phase==='finished'?null:activeSession?.id||null;
  db.activeTraining=activeTraining;
  try{localStorage.setItem(STORAGE_KEY,JSON.stringify(db))}
  catch(e){toast('Speicher voll oder blockiert: Bitte Backup exportieren.');console.warn(e)}
@@ -309,155 +403,288 @@ function first9Stats(game){
  const count=Math.min(9,all.length);
  return {points:all.slice(0,9).reduce((s,n)=>s+n,0),darts:count};
 }
+// MATCH SETUP
+function renderSetupGuests(){
+ const place=$('#setupPlayers');
+ place.innerHTML=`<div class="setup-player owner-player"><span class="player-number">01</span><span class="setup-player-main"><strong>Du</strong><small>Dein Profil · persönliche Statistik</small></span><span class="owner-tag">PROFIL</span></div>`+
+  setupGuests.map((g,i)=>`<div class="setup-player guest-player" data-id="${escapeHTML(g.id)}">
+   <span class="player-number">${String(i+2).padStart(2,'0')}</span>
+   <label class="setup-player-main"><span>GASTSPIELER</span><input type="text" maxlength="28" data-guest-id="${escapeHTML(g.id)}" value="${escapeHTML(g.name)}" placeholder="Name des Spielers" autocomplete="off" aria-label="Name Gastspieler ${i+1}"></label>
+   <button type="button" class="remove-guest" data-remove-id="${escapeHTML(g.id)}" aria-label="Gastspieler ${i+1} entfernen">×</button>
+  </div>`).join('');
+ $('#playerSetupCount').textContent=`${setupGuests.length+1} ${setupGuests.length?'Spieler':'Spieler'}`;
+ syncStarterSelect();
+}
+function syncStarterSelect(){
+ const select=$('#firstPlayer'),previous=select.value;
+ select.innerHTML=[{id:'owner',name:'Du'},...setupGuests.map((g,i)=>({id:g.id,name:g.name||`Gast ${i+1}`}))]
+  .map(p=>`<option value="${escapeHTML(p.id)}">${escapeHTML(p.name)}</option>`).join('');
+ select.value=[...setupGuests.map(g=>g.id),'owner'].includes(previous)?previous:'owner';
+}
+$('#addGuest').addEventListener('click',()=>{
+ setupGuests.push({id:makeId(),name:`Gast ${setupGuests.length+1}`});
+ renderSetupGuests();
+ const last=setupGuests.at(-1);$(`[data-guest-id="${last.id}"]`)?.focus?.();
+});
+$('#setupPlayers').addEventListener('input',e=>{
+ const input=e.target.closest('[data-guest-id]');if(!input)return;
+ const guest=setupGuests.find(g=>g.id===input.dataset.guestId);
+ if(guest){guest.name=input.value;syncStarterSelect()}
+});
+$('#setupPlayers').addEventListener('click',e=>{
+ const btn=e.target.closest('[data-remove-id]');if(!btn)return;
+ setupGuests=setupGuests.filter(g=>g.id!==btn.dataset.removeId);
+ renderSetupGuests();
+});
+function setSetupFormat(format){
+ setupFormat=['free','legs','sets'].includes(format)?format:'free';
+ $$('.format-choice').forEach(b=>b.classList.toggle('selected',b.dataset.format===setupFormat));
+ $('#legsFormatOptions').hidden=setupFormat!=='legs';
+ $('#setsFormatOptions').hidden=setupFormat!=='sets';
+ $('#formatExplanation').textContent=setupFormat==='free'?
+  'Ohne festes Limit. Nach jedem Leg entscheidet ihr, ob ihr weiterspielt.':setupFormat==='legs'?
+  'Wer zuerst die ausgewählte Anzahl Legs gewinnt, gewinnt das Match.':
+  'Ein Set gewinnt, wer zuerst die festgelegte Anzahl Legs erreicht. Wer die eingestellte Anzahl Sets gewinnt, gewinnt das Match.';
+}
+$('#formatChoices').addEventListener('click',e=>{
+ const b=e.target.closest('[data-format]');if(b)setSetupFormat(b.dataset.format);
+});
+renderSetupGuests();setSetupFormat('free');
+function activeMatch(){return activeSession&&activeSession.phase==='playing'?activeSession:null}
 function showGameState(){
- $('#gameSetup').hidden=!!activeGame||!!completedGame;
- $('#gameActive').hidden=!activeGame;
- $('#gameFinished').hidden=!completedGame||!!activeGame;
- if(activeGame)renderGame();
- if(completedGame)renderGameFinish();
+ const s=activeSession;
+ $('#gameSetup').hidden=!!s;
+ $('#gameActive').hidden=!s||s.phase!=='playing';
+ $('#gameFinished').hidden=!s||s.phase==='playing';
+ if(s&&s.phase==='playing')renderGame();
+ if(s&&s.phase!=='playing')renderGameFinish();
 }
-function toggleGuestOptions(){
- const enabled=$('#gameType').value==='guest';
- $('#guestOptions').hidden=!enabled;
-}
-$('#gameType').addEventListener('change',toggleGuestOptions);
-toggleGuestOptions();
 function startGame(){
- if(activeGame&&!confirm('Das aktuelle Leg verwerfen und neu starten?'))return;
- const hasGuest=$('#gameType').value==='guest';
- activeGame={id:makeId(),start:integer($('#startScore').value)||501,
-  mode:$('#outMode').value,startedAt:new Date().toISOString(),completedAt:null,
-  hasGuest,guestName:String($('#guestName').value||'Gast').trim().slice(0,28)||'Gast',
-  activePlayer:hasGuest&&$('#firstPlayer').value==='guest'?'guest':'owner',
-  visits:[],turn:[],winner:null};
- completedGame=null;gameMarkAttempt=false;updateAttemptToggle();save();showGameState();
+ if(activeSession&&activeSession.phase!=='finished'&&!confirm('Aktuelles Match wirklich beenden? Abgeschlossene Legs bleiben gespeichert; das laufende Leg wird verworfen.'))return;
+ if(activeSession&&activeSession.phase!=='finished'){
+  activeSession.phase='finished';activeSession.finishedAt=new Date().toISOString();activeSession.finishedReason='manual';
+  activeSession.visits=[];activeSession.turn=[];
+ }
+ const players=[{id:'owner',role:'owner',name:'Du'},...setupGuests.map((g,i)=>({id:g.id,role:'guest',name:String(g.name||'').trim().slice(0,28)||`Gast ${i+1}`}))];
+ const firstStarterIndex=Math.max(0,players.findIndex(p=>p.id===$('#firstPlayer').value));
+ activeSession={id:makeId(),start:integer($('#startScore').value)||501,
+  mode:$('#outMode').value,format:setupFormat,
+  legsToWin:integer($('#legsToWin').value)||3,setsToWin:integer($('#setsToWin').value)||2,
+  legsPerSet:integer($('#legsPerSet').value)||3,
+  players,firstStarterIndex,starterIndex:firstStarterIndex,
+  currentPlayerId:players[firstStarterIndex].id,startedAt:new Date().toISOString(),
+  legStartedAt:new Date().toISOString(),finishedAt:null,finishedReason:null,
+  phase:'playing',completedLegs:[],visits:[],turn:[]};
+ db.sessions.push(activeSession);
+ gameMarkAttempt=false;updateAttemptToggle();save();showGameState();
 }
 $('#startGame').addEventListener('click',startGame);
-$('#newLeg').addEventListener('click',()=>{completedGame=null;showGameState();window.scrollTo(0,0)});
+$('#newMatch').addEventListener('click',()=>{activeSession=null;save();showGameState();window.scrollTo(0,0)});
 $('#goProfile').addEventListener('click',()=>showPage('profileView'));
 function updateAttemptToggle(){
  $('#attemptToggle').setAttribute('aria-pressed',String(gameMarkAttempt));
  $('#attemptCheck').textContent=gameMarkAttempt?'◉':'○';
 }
-$('#attemptToggle').addEventListener('click',()=>{gameMarkAttempt=!gameMarkAttempt;updateAttemptToggle()});
+$('#attemptToggle').addEventListener('click',()=>{
+ if(!activeMatch())return;
+ gameMarkAttempt=!gameMarkAttempt;updateAttemptToggle();
+});
 function addGameDart(segment){
- if(!activeGame||!validSegment(segment))return;
- const g=activeGame,player=g.activePlayer;
+ const s=activeMatch();if(!s||!validSegment(segment))return;
+ const id=s.currentPlayerId;
  const dart={segment,points:POINTS[segment],checkoutAttempt:gameMarkAttempt};
  gameMarkAttempt=false;updateAttemptToggle();
- const current=matchRemaining(g,player)-g.turn.reduce((s,d)=>s+d.points,0);
- const next=current-dart.points;
- if(next===0&&allowedFinisher(segment,g.mode))dart.checkoutAttempt=true;
- g.turn.push(dart);
- const bust=next<0||(next===0&&!allowedFinisher(segment,g.mode))||
-  (next===1&&g.mode!=='straight');
- if(bust){finalizeVisit(true,false);toast(`${playerLabel(g,player)}: Bust – 0 Punkte.`);return}
- if(next===0){finalizeVisit(false,true);return}
- if(g.turn.length>=3){finalizeVisit(false,false);return}
+ const before=sessionRemaining(s,id)-s.turn.reduce((n,d)=>n+d.points,0);
+ const after=before-dart.points;
+ if(after===0&&allowedFinisher(segment,s.mode))dart.checkoutAttempt=true;
+ s.turn.push(dart);
+ const bust=after<0||(after===0&&!allowedFinisher(segment,s.mode))||
+  (after===1&&s.mode!=='straight');
+ if(bust){finalizeVisit(true,false);toast(`${sessionPlayerName(s,id)}: Bust – 0 Punkte.`);return}
+ if(after===0){finalizeVisit(false,true);return}
+ if(s.turn.length===3){finalizeVisit(false,false);return}
  save();renderGame();
 }
 function finalizeVisit(bust,checkout){
- const g=activeGame;if(!g||!g.turn.length)return;
- const player=g.activePlayer,darts=g.turn.map(d=>({...d})),
-  score=bust?0:darts.reduce((sum,d)=>sum+d.points,0);
- g.visits.push({player,number:matchVisits(g,player).length+1,darts,score,bust,checkout,
-  remainingBefore:matchRemaining(g,player)});
- g.turn=[];
+ const s=activeMatch();if(!s||!s.turn.length)return;
+ const id=s.currentPlayerId,darts=s.turn.map(d=>({...d})),
+  score=bust?0:darts.reduce((n,d)=>n+d.points,0);
+ s.visits.push({playerId:id,number:sessionCurrentVisits(s,id).length+1,darts,score,bust,checkout});
+ s.turn=[];
  if(checkout){
-  g.winner=player;g.completedAt=new Date().toISOString();
-  const complete=normalizeMatch(g);
-  db.matches.push(complete);completedGame=complete;activeGame=null;
-  toast(`${playerLabel(g,player)} gewinnt das Leg!`);
+  const now=new Date().toISOString();
+  s.completedLegs.push({id:makeId(),number:s.completedLegs.length+1,
+   starterIndex:s.starterIndex,winnerId:id,startedAt:s.legStartedAt,
+   completedAt:now,visits:s.visits.map(v=>({...v,darts:v.darts.map(d=>({...d}))}))});
+  s.visits=[];
+  const standings=sessionStandings(s);
+  s.phase=standings.targetWinner?'finished':'between';
+  if(standings.targetWinner){s.finishedAt=now;s.finishedReason='target'}
+  toast(standings.targetWinner?`${sessionPlayerName(s,id)} gewinnt das Match!`:
+   `${sessionPlayerName(s,id)} gewinnt Leg ${s.completedLegs.length}!`);
  }else{
-  g.activePlayer=nextPlayer(g,player);
-  gameMarkAttempt=false;updateAttemptToggle();
+  s.currentPlayerId=nextSessionPlayer(s,id);
  }
- save();showGameState();
+ gameMarkAttempt=false;updateAttemptToggle();save();showGameState();
 }
 function undoGameDart(){
- if(!activeGame)return;
- if(activeGame.turn.length)activeGame.turn.pop();
- else if(activeGame.visits.length){
-  const last=activeGame.visits.pop();
-  activeGame.activePlayer=last.player;
-  activeGame.turn=last.darts.slice(0,-1);
+ const s=activeMatch();if(!s)return;
+ if(s.turn.length){s.turn.pop()}
+ else if(s.visits.length){
+  const v=s.visits.pop();
+  s.currentPlayerId=v.playerId;
+  s.turn=v.darts.slice(0,-1);
  }else{toast('Noch kein Dart zum Rückgängigmachen.');return}
  gameMarkAttempt=false;updateAttemptToggle();save();renderGame();
 }
 $('#undoGame').addEventListener('click',undoGameDart);
-$('#undoCheckout').addEventListener('click',()=>{
- if(!completedGame)return;
- const m=normalizeMatch(completedGame),last=m.visits.pop();
- if(!last)return;
- m.turn=last.darts.slice(0,-1);m.activePlayer=last.player;
- m.winner=null;m.completedAt=null;
- db.matches=db.matches.filter(v=>v.id!==m.id);
- completedGame=null;activeGame=m;gameMarkAttempt=false;updateAttemptToggle();
- save();showGameState();toast('Checkout rückgängig gemacht.');
-});
-$('#abandonGame').addEventListener('click',()=>{
- if(!activeGame||!confirm('Dieses Leg wirklich verwerfen? Die Aufnahmen dieses Legs werden nicht in die Statistik übernommen.'))return;
- activeGame=null;gameMarkAttempt=false;save();showGameState();toast('Leg verworfen.');
-});
-function renderGame(){
- const m=activeGame;if(!m)return;
- const player=m.activePlayer,own=player==='owner',pview=matchPlayerView(m,player),
-  pending=m.turn.reduce((s,d)=>s+d.points,0),remaining=matchRemaining(m,player)-pending,
-  available=3-m.turn.length;
- $('#playerCards').classList.toggle('solo',!m.hasGuest);
- const cards=m.hasGuest?['owner','guest']:['owner'];
- $('#playerCards').innerHTML=cards.map(role=>{
-  const score=matchRemaining(m,role)-(role===player?pending:0),view=matchPlayerView(m,role),
-   darts=gameDartCount(view),avg=darts?visitPoints(view)/darts*3:0;
-  return `<div class="player-card ${role===player?'is-active':''}" ${role===player?'aria-current="true"':''}>
-    <div class="player-top"><strong class="player-name">${escapeHTML(playerLabel(m,role))}</strong>
-    <span class="player-role">${role===player?'● AM ZUG':role==='guest'?'GAST':'DEIN PROFIL'}</span></div>
-    <div class="player-score">${score}</div><div class="player-sub">Ø ${numberFormat(avg)} · ${darts} Darts</div></div>`;
+function undoCheckout(){
+ const s=activeSession;if(!s||s.phase==='playing'||!s.completedLegs.length)return;
+ const last=s.completedLegs.pop();
+ const finalVisit=last.visits.at(-1);
+ if(!finalVisit)return;
+ s.visits=last.visits.slice(0,-1).map(v=>({...v,darts:v.darts.map(d=>({...d}))}));
+ s.turn=finalVisit.darts.slice(0,-1).map(d=>({...d}));
+ s.currentPlayerId=finalVisit.playerId;
+ s.legStartedAt=last.startedAt;
+ s.starterIndex=last.starterIndex;
+ s.phase='playing';s.finishedAt=null;s.finishedReason=null;
+ gameMarkAttempt=false;updateAttemptToggle();save();showGameState();toast('Checkout rückgängig gemacht.');
+}
+$('#undoCheckout').addEventListener('click',undoCheckout);
+function nextLeg(){
+ const s=activeSession;if(!s||s.phase!=='between')return;
+ s.starterIndex=(s.firstStarterIndex+s.completedLegs.length)%s.players.length;
+ s.currentPlayerId=s.players[s.starterIndex].id;
+ s.visits=[];s.turn=[];s.legStartedAt=new Date().toISOString();
+ s.phase='playing';gameMarkAttempt=false;updateAttemptToggle();save();showGameState();
+}
+$('#nextLeg').addEventListener('click',nextLeg);
+function endMatch(){
+ const s=activeSession;if(!s||s.phase==='finished')return;
+ if(s.phase==='playing'&&!confirm('Match wirklich beenden? Bereits abgeschlossene Legs bleiben gespeichert. Darts des unvollständigen Legs werden verworfen.'))return;
+ s.visits=[];s.turn=[];s.phase='finished';s.finishedAt=new Date().toISOString();s.finishedReason='manual';
+ gameMarkAttempt=false;updateAttemptToggle();save();showGameState();
+ toast('Match beendet. Alle fertigen Legs gespeichert.');
+}
+$('#endMatchAfterLeg').addEventListener('click',endMatch);
+$('#abandonGame').addEventListener('click',endMatch);
+function standingsHTML(s){
+ const summary=sessionStandings(s);
+ const order=[...s.players].sort((a,b)=>{
+  const ax=s.format==='sets'?summary.sets[a.id]:summary.totals[a.id];
+  const bx=s.format==='sets'?summary.sets[b.id]:summary.totals[b.id];
+  return bx-ax||summary.totals[b.id]-summary.totals[a.id]||s.players.indexOf(a)-s.players.indexOf(b);
+ });
+ return order.map((p,i)=>{
+  const champion=summary.targetWinner===p.id;
+  return `<div class="standing-player ${champion?'champion':''}">
+    <div class="standing-place">${champion?'🏆':String(i+1).padStart(2,'0')}</div>
+    <div class="standing-person"><strong>${escapeHTML(p.name)}</strong><small>${p.role==='owner'?'Dein Profil':'Gastspieler'} · ${summary.totals[p.id]} Legs gesamt</small></div>
+    <div class="standing-numbers">
+      ${s.format==='sets'?`<strong>${summary.sets[p.id]}<small> SETS</small></strong><span>${summary.inSet[p.id]} Leg(s) im Set</span>`:
+       `<strong>${summary.totals[p.id]}<small> LEGS</small></strong>`}
+    </div>
+  </div>`;
  }).join('');
- $('#turnBanner').textContent=`🎯 ${playerLabel(m,player)} ${own?'bist':'ist'} am Zug`;
- $('#scoreLabel').textContent=own?'DEINE RESTPUNKTE':'RESTPUNKTE GAST';
+}
+function renderMatchHeader(s){
+ const result=sessionStandings(s);
+ $('#matchRoundLabel').textContent=`${s.format==='sets'?'SET '+result.setNumber+' · ':''}LEG ${s.completedLegs.length+1}`;
+ $('#matchFormatLabel').textContent=s.format==='free'?'Freies Spiel':s.format==='legs'?`Erster mit ${s.legsToWin} Legs`:
+  `${s.setsToWin} Sets · ${s.legsPerSet} Legs/Set`;
+ $('#matchProgressText').textContent=`${s.completedLegs.length} ${s.completedLegs.length===1?'Leg':'Legs'} gespielt`;
+}
+function renderGame(){
+ const s=activeMatch();if(!s)return;
+ const id=s.currentPlayerId,pview={visits:sessionCurrentVisits(s,id)},
+  pending=s.turn.reduce((n,d)=>n+d.points,0),remaining=sessionRemaining(s,id)-pending,
+  available=3-s.turn.length,summary=sessionStandings(s);
+ renderMatchHeader(s);
+ $('#playerCards').classList.toggle('solo',s.players.length===1);
+ $('#playerCards').classList.toggle('is-many',s.players.length>4);
+ $('#playerSwipeHint').hidden=s.players.length<=4;
+ $('#playerCards').innerHTML=s.players.map((p,i)=>{
+  const view={visits:sessionCurrentVisits(s,p.id)};
+  const isCurrent=p.id===id;
+  const score=sessionRemaining(s,p.id)-(isCurrent?pending:0),darts=gameDartCount(view),avg=darts?visitPoints(view)/darts*3:0;
+  return `<div class="player-card ${isCurrent?'is-active':''}" ${isCurrent?'aria-current="true"':''}>
+   <div class="player-top"><strong class="player-name">${escapeHTML(p.name)}</strong><span class="player-role">${isCurrent?'● AM ZUG':p.role==='owner'?'PROFIL':'GAST'}</span></div>
+   <div class="player-score">${score}</div><div class="player-sub">Ø ${numberFormat(avg)} · ${darts} Darts</div>
+   <div class="player-tally">${s.format==='sets'?`<strong>${summary.sets[p.id]} Sets</strong><span>${summary.inSet[p.id]} Legs im Set</span>`:
+   `<strong>${summary.totals[p.id]} Legs</strong><span>${s.format==='legs'?`Ziel: ${s.legsToWin}`:'Gesamtstand'}</span>`}</div></div>`;
+ }).join('');
+ if(s.players.length>4){
+  const board=$('#playerCards'),current=$('.player-card.is-active',board);
+  if(current&&typeof board.scrollTo==='function')board.scrollTo({
+    left:Math.max(0,current.offsetLeft-board.offsetLeft-board.clientWidth/2+current.clientWidth/2),behavior:'auto'});
+ }
+ $('#turnBanner').textContent=`🎯 ${sessionPlayerName(s,id)} ${id==='owner'?'bist':'ist'} am Zug`;
+ $('#currentPlayerCaption').textContent=`${sessionPlayerName(s,id)} wirft gerade`;
+ $('#scoreLabel').textContent=id==='owner'?'DEINE RESTPUNKTE':'RESTPUNKTE '+sessionPlayerName(s,id).toUpperCase();
  $('#remainingScore').textContent=remaining;
- $('#scoreProgress').style.width=`${Math.max(0,Math.min(100,(1-remaining/m.start)*100))}%`;
- const mode={double:'Double Out',straight:'Straight Out',master:'Master Out'}[m.mode];
- $('#matchMode').textContent=`${m.start} · ${mode}`;
- $('#scoreSubline').textContent=`${playerLabel(m,player)} · Aufnahme ${pview.visits.length+1} · Dart ${m.turn.length+1}/3`;
- const thrown=gameDartCount(pview)+m.turn.length;
+ $('#scoreProgress').style.width=`${Math.max(0,Math.min(100,(1-remaining/s.start)*100))}%`;
+ const mode={double:'Double Out',straight:'Straight Out',master:'Master Out'}[s.mode];
+ $('#matchMode').textContent=`${s.start} · ${mode}`;
+ $('#scoreSubline').textContent=`${sessionPlayerName(s,id)} · Aufnahme ${pview.visits.length+1} · Dart ${s.turn.length+1}/3`;
+ const thrown=gameDartCount(pview)+s.turn.length;
  $('#gameAvg').textContent=numberFormat(thrown?(visitPoints(pview)+pending)/thrown*3:0);
  $('#gameDarts').textContent=thrown;
  $('#gameBest').textContent=pview.visits.length?Math.max(...pview.visits.map(v=>v.score)):'–';
- $('#turnHeader').textContent=own?'Deine Darts':`${playerLabel(m,player)} wirft`;
+ $('#turnHeader').textContent=id==='owner'?'Deine Darts':`${sessionPlayerName(s,id)} wirft`;
  $('#turnTotal').textContent=`${pending} Punkte`;
- $('#turnIndex').textContent=`${m.turn.length+1} / 3`;
- $('#dartSlots').innerHTML=NUMBERS.slice(0,3).map((_,i)=>{
-  const dart=m.turn[i],current=i===m.turn.length;
-  return `<div class="dart-slot ${current?'current':''} ${dart?'':'empty'}">
-   <small>DART ${i+1}</small><strong>${dart?escapeHTML(dart.segment):current?'↗':'–'}</strong></div>`;
+ $('#turnIndex').textContent=`${s.turn.length+1} / 3`;
+ $('#dartSlots').innerHTML=[0,1,2].map(i=>{
+  const dart=s.turn[i],current=i===s.turn.length;
+  return `<div class="dart-slot ${current?'current':''} ${dart?'':'empty'}"><small>DART ${i+1}</small><strong>${dart?escapeHTML(dart.segment):current?'↗':'–'}</strong></div>`;
  }).join('');
- const a=adviceFor(remaining,available,m.mode);
- $('#adviceType').textContent=a.kind==='checkout'?'CHECKOUT-MÖGLICHKEIT':'CHECKOUT-ASSISTENT';
- $('#adviceHeading').textContent=a.headline;$('#adviceText').textContent=a.text;
+ const advice=adviceFor(remaining,available,s.mode);
+ $('#adviceType').textContent=advice.kind==='checkout'?'CHECKOUT-MÖGLICHKEIT':'CHECKOUT-ASSISTENT';
+ $('#adviceHeading').textContent=advice.headline;
+ $('#adviceText').textContent=advice.text;
  $('#adviceDarts').textContent=`${available} ${available===1?'Dart':'Darts'} übrig`;
- $('#adviceSteps').innerHTML=a.route.length?a.route.map((seg,i)=>
-  `<div class="advice-step"><small>DART ${i+1}</small><strong>${escapeHTML(seg)}</strong></div>`).join('<span class="advice-step arrow-step">→</span>'):'<span class="caption">Spiele einen sicheren Dart.</span>';
- $('#visitCounter').textContent=`${m.visits.length} Aufnahmen`;
- $('#visitList').innerHTML=m.visits.length?[...m.visits].reverse().slice(0,10).map(v=>
+ $('#adviceSteps').innerHTML=advice.route.length?advice.route.map((seg,i)=>
+  `<div class="advice-step"><small>DART ${i+1}</small><strong>${escapeHTML(seg)}</strong></div>`).join('<span class="advice-step arrow-step">→</span>'):
+  '<span class="caption">Spiele einen sicheren Dart.</span>';
+ $('#visitCounter').textContent=`${s.visits.length} Aufnahmen`;
+ $('#visitList').innerHTML=s.visits.length?[...s.visits].reverse().slice(0,10).map(v=>
   `<div class="visit-item"><div><strong>Aufnahme ${v.number}</strong>
-    <span class="visit-player ${v.player==='guest'?'guest':''}">${escapeHTML(playerLabel(m,v.player))}</span>
+    <span class="visit-player ${v.playerId!=='owner'?'guest':''}">${escapeHTML(sessionPlayerName(s,v.playerId))}</span>
     <small>${v.darts.map(d=>escapeHTML(d.segment)).join(' · ')}</small></div>
     <div><strong class="${v.bust?'bust':''}">${v.bust?'BUST':v.score}</strong></div></div>`
  ).join(''):'<p class="empty">Die ersten Darts warten auf dich.</p>';
- $('#undoGame').disabled=!m.turn.length&&!m.visits.length;
+ $('#undoGame').disabled=!s.turn.length&&!s.visits.length;
 }
 function renderGameFinish(){
- const m=completedGame;if(!m)return;
- const own=ownGameFromMatch(m),last=m.visits.at(-1),winner=playerLabel(m,m.winner);
- $('#finishWinnerTitle').textContent=`${winner} ${m.winner==='owner'?'gewinnst':'gewinnt'} das Leg!`;
- $('#finishWinnerSubtitle').textContent=m.hasGuest?
-  'Nur deine eigenen Darts wurden für dein Profil gespeichert. Die Gastwürfe bleiben getrennt.':
-  'Deine Darts wurden im Profil gespeichert.';
- $('#finishedAvg').textContent=numberFormat(gameAverage(own));
- $('#finishedDarts').textContent=gameDartCount(own);
- $('#finishedCheckout').textContent=last?last.remainingBefore:'–';
+ const s=activeSession;if(!s)return;
+ const leg=s.completedLegs.at(-1),standings=sessionStandings(s);
+ const winner=leg?sessionPlayerName(s,leg.winnerId):null;
+ const matchWinner=standings.targetWinner?sessionPlayerName(s,standings.targetWinner):null;
+ const finished=s.phase==='finished';
+ $('#finishSymbol').textContent=matchWinner?'🏆':finished?'✓':'🎯';
+ $('#finishEyebrow').textContent=matchWinner?'MATCH GEWONNEN':finished?'MATCH BEENDET':'LEG GESPEICHERT';
+ $('#finishWinnerTitle').textContent=matchWinner?`${matchWinner} gewinnt das Match!`:
+  finished?'Match abgeschlossen':`${winner} ${leg.winnerId==='owner'?'gewinnst':'gewinnt'} Leg ${leg.number}!`;
+ $('#finishWinnerSubtitle').textContent=matchWinner?'Herzlichen Glückwunsch! Alle Legs und Sets sind gespeichert.':
+  finished?'Alle abgeschlossenen Legs sind im Verlauf gespeichert.':'Leg erfolgreich gespeichert. Ihr entscheidet, ob es weitergeht.';
+ const owned=leg?ownGameFromSessionLeg(s,leg):null;
+ $('#finishedAvg').textContent=owned?numberFormat(gameAverage(owned)):'–';
+ $('#finishedDarts').textContent=owned?gameDartCount(owned):0;
+ const last=leg?.visits.at(-1);
+ const scoreBefore=last?s.start-leg.visits.filter(v=>v.playerId===last.playerId&&v!==last).reduce((n,v)=>n+v.score,0):0;
+ $('#finishedCheckout').textContent=last?scoreBefore:'–';
+ $('#standingsHeading').textContent=s.format==='sets'?`Set ${standings.lastSetWinnerId?Math.max(1,standings.setNumber-1):standings.setNumber}${standings.lastSetWinnerId?' abgeschlossen':''}`:'Matchübersicht';
+ $('#standingFormat').textContent=s.format==='sets'?'SETS + LEGS':'LEGS';
+ $('#standingsCards').innerHTML=standingsHTML(s);
+ $('#standingsNote').textContent=s.format==='free'?'Freies Spiel ohne Matchlimit.':s.format==='legs'?
+  `Das Match endet, sobald jemand ${s.legsToWin} ${s.legsToWin===1?'Leg':'Legs'} gewinnt.`:
+  `Ein Set benötigt ${s.legsPerSet} Leg-Siege. Zum Matchgewinn sind ${s.setsToWin} Set-Siege nötig.`;
+ $('#decisionPanel').hidden=finished;
+ $('#matchDonePanel').hidden=!finished;
+ $('#undoCheckout').hidden=!leg;
+ $('#matchDoneTitle').textContent=matchWinner?`${matchWinner} ist Matchsieger!`:'Match vorzeitig beendet';
+ $('#decisionTitle').textContent=standings.lastSetWinnerId?`Set für ${sessionPlayerName(s,standings.lastSetWinnerId)}! Noch eines?`:'Noch ein Leg?';
+ $('#decisionText').textContent='Das letzte Leg ist bereits gespeichert. Ihr könnt sofort weiterspielen oder das Match an dieser Stelle beenden.';
 }
 buildKeypad('#gamePad',addGameDart);
 
@@ -573,6 +800,7 @@ function renderProfile(){
  renderDaily();
  renderCheckouts();
  renderHistory();
+ renderMatchHistory();
 }
 function renderAverageChart(){
  const holder=$('#averageChart');
@@ -693,9 +921,28 @@ function renderHistory(){
  ).join(''):'<p class="empty">Deine letzten Legs und Trainings werden hier angezeigt.</p>';
 }
 
+function renderMatchHistory(){
+ const sessions=[...db.sessions].filter(s=>s.completedLegs.length).sort((a,b)=>
+  new Date(b.finishedAt||b.completedLegs.at(-1)?.completedAt||b.startedAt)-
+  new Date(a.finishedAt||a.completedLegs.at(-1)?.completedAt||a.startedAt)).slice(0,20);
+ $('#matchHistory').innerHTML=sessions.length?sessions.map(s=>{
+  const result=sessionStandings(s),champion=result.targetWinner?sessionPlayerName(s,result.targetWinner):null;
+  const ended=s.phase==='finished';
+  const label=s.format==='sets'?`${s.setsToWin} Sets · ${s.legsPerSet} Legs/Set`:
+   s.format==='legs'?`Erster mit ${s.legsToWin} Legs`:'Freies Spiel';
+  const names=s.players.map(p=>escapeHTML(p.name)).join(' · ');
+  const summary=s.players.map(p=>`${escapeHTML(p.name)}: ${s.format==='sets'?result.sets[p.id]+' Sets':result.totals[p.id]+' Legs'}`).join(' | ');
+  return `<div class="match-history-item">
+   <div class="match-history-head"><strong>${escapeHTML(label)}</strong><span class="match-history-status ${ended?'finished':''}">${ended?'Beendet':'Läuft'}</span></div>
+   <p>${names}</p><small>${s.completedLegs.length} Legs gespielt · ${escapeHTML(dayLabel(localDay(s.startedAt)||'2000-01-01'))}</small>
+   <div class="match-history-footer"><span>${summary}</span>${champion?`<strong>🏆 ${escapeHTML(champion)}</strong>`:''}</div>
+  </div>`;
+ }).join(''):'<p class="empty">Nach deinem ersten abgeschlossenen Leg erscheint hier die Matchhistorie.</p>';
+}
+
 // BACKUP – Keine Cloud, keine fremden Server, kein Benutzerkonto nötig.
 function exportBackup(){
- const content=JSON.stringify({...db,activeGame,activeTraining},null,2);
+ const content=JSON.stringify({...db,activeSessionId:activeSession?.phase==='finished'?null:activeSession?.id||null,activeTraining},null,2);
  const blob=new Blob([content],{type:'application/json'});
  const url=URL.createObjectURL(blob),link=document.createElement('a');
  link.href=url;link.download=`oche-backup-${localDay(new Date().toISOString())}.json`;
@@ -711,19 +958,19 @@ $('#importFile').addEventListener('change',async e=>{
  try{
   if(file.size>8*1024*1024)throw new Error('Backup ist zu groß (max. 8 MB).');
   const raw=JSON.parse(await file.text());
-  if(!raw||!(Array.isArray(raw.games)||Array.isArray(raw.matches)))
+  if(!raw||!(Array.isArray(raw.games)||Array.isArray(raw.matches)||Array.isArray(raw.sessions)))
    throw new Error('Unbekanntes Backup-Format.');
   if(!confirm('Dieses Backup ersetzt alle aktuellen Spiele, Trainings und laufenden Sessions. Fortfahren?'))return;
-  db=normalizeData(raw);activeGame=db.activeGame;activeTraining=db.activeTraining;
-  completedGame=null;completedTraining=null;save();
+  db=normalizeData(raw);activeSession=db.sessions.find(s=>s.id===db.activeSessionId)||null;activeTraining=db.activeTraining;
+  completedTraining=null;save();
   showGameState();showTrainingState();renderProfile();toast('Backup erfolgreich importiert.');
  }catch(err){toast(err.message||'Backup konnte nicht gelesen werden.')}
  finally{e.target.value=''}
 });
 $('#deleteAll').addEventListener('click',()=>{
  if(!confirm('Wirklich ALLE Legs, Trainings und Statistiken löschen? Die Daten sind ohne Backup unwiederbringlich verloren.'))return;
- db={version:3,games:[],matches:[],trainings:[],activeGame:null,activeTraining:null};
- activeGame=null;activeTraining=null;completedGame=null;completedTraining=null;
+ db={version:4,games:[],matches:[],sessions:[],trainings:[],activeSessionId:null,activeTraining:null};
+ activeSession=null;activeTraining=null;completedTraining=null;
  save();showGameState();showTrainingState();renderProfile();toast('Alle Daten gelöscht.');
 });
 if('serviceWorker' in navigator){
