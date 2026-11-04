@@ -19,8 +19,8 @@ const dayLabel=day=>{const [y,m,d]=day.split('-');return `${d}.${m}.${y}`};
 function makeId(){return (typeof crypto!=='undefined'&&crypto.randomUUID)?crypto.randomUUID():`${Date.now()}-${Math.random().toString(36).slice(2,10)}`}
 // OCHE 5: Soundeffekte via Web Audio (keine externen Audiodateien).
 const AUDIO_KEY='oche-dart-audio-v5';
-let audioSettings={voice:true,sounds:true,volume:65};
-try{audioSettings={...audioSettings,...JSON.parse(localStorage.getItem(AUDIO_KEY)||'{}')}}catch{}
+let audioSettings={sounds:true,volume:65};
+try{audioSettings={...audioSettings,...JSON.parse(localStorage.getItem(AUDIO_KEY)||'{}')};delete audioSettings.voice}catch{}
 let audioContext=null;
 function audioCtx(){
  try{const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return null;
@@ -44,29 +44,20 @@ function playEffect(kind){
  else if(kind==='win'){tone(440,.12);tone(550,.12,.13);tone(660,.13,.26);tone(880,.28,.40)}
  else tone(620,.09);
 }
-function say(text){
- if(!audioSettings.voice||!('speechSynthesis' in window))return;
- try{const synth=window.speechSynthesis;synth.cancel();const u=new SpeechSynthesisUtterance(String(text));
- u.lang='de-DE';u.rate=.98;u.volume=Math.min(1,Math.max(0,audioSettings.volume/100));
- const voices=synth.getVoices();const german=voices.find(v=>v.lang.toLowerCase().startsWith('de'));if(german)u.voice=german;
- synth.speak(u);
- }catch{}
-}
 function announceVisit(s,id,score,bust,checkout){
- if(checkout){playEffect('win');say(`${sessionPlayerName(s,id)} gewinnt das Leg!`)}
- else if(bust){playEffect('bust');say(`${sessionPlayerName(s,id)}, Bust`)}
- else if(score>=140){playEffect('high');say(score===180?'One hundred and eighty!':`${score} Punkte`)}
- else{playEffect('dart');say(`${score} Punkte`)}
+ if(checkout)playEffect('win');
+ else if(bust)playEffect('bust');
+ else if(score>=140)playEffect('high');
+ else playEffect('dart');
 }
 function initAudioControls(){
- const voice=$('#voiceEnabled'),sounds=$('#soundsEnabled'),volume=$('#audioVolume'),label=$('#audioVolumeLabel');
- voice.checked=!!audioSettings.voice;sounds.checked=!!audioSettings.sounds;
+ const sounds=$('#soundsEnabled'),volume=$('#audioVolume'),label=$('#audioVolumeLabel');
+ sounds.checked=!!audioSettings.sounds;
  volume.value=Math.max(0,Math.min(100,Number(audioSettings.volume)||0));label.textContent=volume.value+' %';
  function persist(){localStorage.setItem(AUDIO_KEY,JSON.stringify(audioSettings))}
- voice.addEventListener('change',()=>{audioSettings.voice=voice.checked;persist();if(!voice.checked&&'speechSynthesis' in window)speechSynthesis.cancel()});
  sounds.addEventListener('change',()=>{audioSettings.sounds=sounds.checked;persist()});
  volume.addEventListener('input',()=>{audioSettings.volume=Number(volume.value);label.textContent=volume.value+' %';persist()});
- $('#testAudio').addEventListener('click',()=>{playEffect('high');say('OCHE Version fünf. Viel Erfolg beim Dartspielen!')});
+ $('#testAudio').addEventListener('click',()=>playEffect('high'));
 }
 function normalizeDart(raw){
  if(!raw||typeof raw!=='object')return null;
@@ -305,6 +296,7 @@ function showPage(id){
  activePage=id;
  $$('.page').forEach(el=>el.classList.toggle('active',el.id===id));
  $$('.nav-btn').forEach(el=>el.classList.toggle('active',el.dataset.page===id));
+ if(id!=='gameView')window.ocheCamera?.onLeaveGame();
  if(id==='profileView')renderProfile();
  if(id==='trainingView')renderTrainingPreview();
  window.scrollTo({top:0,behavior:'auto'});
@@ -509,6 +501,7 @@ function showGameState(){
  $('#gameFinished').hidden=!s||s.phase==='playing';
  if(s&&s.phase==='playing')renderGame();
  if(s&&s.phase!=='playing')renderGameFinish();
+ window.ocheCamera?.onGameStateChange();
 }
 function startGame(){
  if(activeSession&&activeSession.phase!=='finished'&&!confirm('Aktuelles Match wirklich beenden? Abgeschlossene Legs bleiben gespeichert; das laufende Leg wird verworfen.'))return;
@@ -542,6 +535,7 @@ $('#attemptToggle').addEventListener('click',()=>{
 });
 function addGameDart(segment){
  const s=activeMatch();if(!s||!validSegment(segment))return;
+ window.ocheCamera?.onGameDart(segment);
  const id=s.currentPlayerId;
  const dart={segment,points:POINTS[segment],checkoutAttempt:gameMarkAttempt};
  gameMarkAttempt=false;updateAttemptToggle();
@@ -581,6 +575,7 @@ function finalizeVisit(bust,checkout){
 }
 function undoGameDart(){
  const s=activeMatch();if(!s)return;
+ window.ocheCamera?.onGameDart();
  if(s.turn.length){s.turn.pop()}
  else if(s.visits.length){
   const v=s.visits.pop();
@@ -1045,7 +1040,7 @@ function renderMatchHistory(){
 function matchShareText(s){
  const st=sessionStandings(s),label=s.format==='sets'?`${s.setsToWin} Sets / ${s.legsPerSet} Legs je Set`:s.format==='legs'?`Erster mit ${s.legsToWin} Legs`:'Freies Spiel';
  const lines=s.players.map(p=>`${p.name}: ${st.totals[p.id]} Legs${s.format==='sets'?`, ${st.sets[p.id]} Sets`:''}`);
- return `🎯 OCHE 5.0 – Dart-Match\n${s.start} · ${s.mode==='double'?'Double Out':s.mode==='master'?'Master Out':'Straight Out'} · ${label}\n${lines.join('\n')}\n${s.completedLegs.length} Legs gespielt${st.targetWinner?'\n🏆 Sieger: '+sessionPlayerName(s,st.targetWinner):''}\nErstellt mit OCHE von Lenas Sum`;
+ return `🎯 OCHE 6.0 – Dart-Match\n${s.start} · ${s.mode==='double'?'Double Out':s.mode==='master'?'Master Out':'Straight Out'} · ${label}\n${lines.join('\n')}\n${s.completedLegs.length} Legs gespielt${st.targetWinner?'\n🏆 Sieger: '+sessionPlayerName(s,st.targetWinner):''}\nErstellt mit OCHE von Lenas Sum`;
 }
 function createMatchImage(s){
  const canvas=document.createElement('canvas');canvas.width=1080;canvas.height=630;
