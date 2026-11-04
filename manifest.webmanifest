@@ -1,18 +1,25 @@
 {
-  "name": "Oche – Dart X01",
-  "short_name": "Oche Dart",
-  "description": "Offlinefähiger Dart X01 Zähler und Statistik",
+  "name": "OCHE – Dart Companion",
+  "short_name": "OCHE",
+  "description": "Dart X01, Checkout-Hilfe, Trainingsmodus und umfangreiche Statistiken. Offline nutzbar.",
+  "id": "./",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#0b1020",
-  "theme_color": "#111827",
+  "background_color": "#090f1b",
+  "theme_color": "#0a0f1b",
   "icons": [
     {
-      "src": "icon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
       "purpose": "any maskable"
     }
   ]

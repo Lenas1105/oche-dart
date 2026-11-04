@@ -3,75 +3,195 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#111827">
-  <meta name="description" content="Offlinefähiger X01 Dart-Zähler mit persönlicher Statistik.">
-  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#0a0f1b">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="OCHE">
+  <meta name="description" content="Dein offline Dart-X01-Zähler mit Checkout-Hilfe, Training und Statistiken.">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="styles.css">
-  <title>Oche – Dart X01</title>
+  <title>OCHE – Dart Companion</title>
 </head>
 <body>
   <header class="topbar">
-    <div class="brand"><span class="brand-mark">●</span><div><strong>OCHE</strong><small>DART X01</small></div></div>
-    <div class="status"><span class="offline-dot"></span><span id="connectionLabel">Offline bereit</span></div>
+    <a href="#spielen" id="brandLink" class="brand" aria-label="OCHE Startseite">
+      <span class="brand-icon"><span>◎</span></span>
+      <span><strong>OCHE<span class="brand-dot">.</span></strong><small>DART COMPANION</small></span>
+    </a>
+    <div class="connection"><i id="connectionDot"></i><span id="connectionLabel">Offline-fähig</span></div>
   </header>
 
-  <main>
-    <section id="gameView" class="view active">
-      <div class="page-heading"><div><p class="eyebrow">MATCH CENTER</p><h1>Spiel zählen</h1></div><button class="icon-btn" id="newGameBtn" aria-label="Neues Spiel">＋</button></div>
-      <div class="setup-card" id="setupCard">
-        <div class="field-row">
-          <label>Startscore<select id="startScore"><option>501</option><option>301</option><option>701</option><option>901</option><option>1001</option></select></label>
-          <label>Spielmodus<select id="outMode"><option value="double">Double Out</option><option value="straight">Straight Out</option><option value="master">Master Out</option></select></label>
-        </div>
-        <button class="primary-btn full" id="startGameBtn">Spiel starten <span>→</span></button>
+  <main class="main">
+    <section id="gameView" class="page active" aria-label="Dart spielen">
+      <div class="page-title">
+        <div><p class="eyebrow">01 / MATCH CENTER</p><h1>Spielen<span class="accent-dot">.</span></h1><p class="subtitle">Jeder Dart zählt.</p></div>
+        <div class="title-emblem">🎯</div>
       </div>
 
-      <div id="activeGame" class="hidden">
-        <div class="score-card">
-          <div class="score-meta"><span class="live-badge">● LIVE</span><span id="gameModeLabel">501 · Double Out</span><span id="legLabel">Leg 1</span></div>
-          <div class="score-number" id="remainingScore">501</div>
-          <div class="score-caption">RESTPUNKTE</div>
-          <div class="score-stats">
-            <div><strong id="currentAverage">0.0</strong><span>3-DART-AVG</span></div>
-            <div><strong id="dartsThrown">0</strong><span>DARTS</span></div>
-            <div><strong id="bestVisit">–</strong><span>BESTE AUFNAHME</span></div>
+      <div id="gameSetup" class="panel setup-panel">
+        <div class="panel-heading"><div><p class="eyebrow subtle">NEUES LEG</p><h2>Bereit für die Oche?</h2></div><span class="mini-icon">↗</span></div>
+        <div class="two-fields">
+          <label class="field"><span>STARTPUNKTE</span><select id="startScore">
+            <option>501</option><option>301</option><option>701</option><option>901</option><option>1001</option>
+          </select></label>
+          <label class="field"><span>CHECKOUT-REGEL</span><select id="outMode">
+            <option value="double">Double Out</option>
+            <option value="straight">Straight Out</option>
+            <option value="master">Master Out</option>
+          </select></label>
+        </div>
+        <button class="primary-btn wide" id="startGame">Leg starten <span>→</span></button>
+        <p class="caption center">Alle Darts und Aufnahmen werden automatisch gezählt.</p>
+      </div>
+
+      <div id="gameActive" hidden>
+        <div class="score-hero">
+          <div class="hero-meta"><span class="live-pill"><i></i> LIVE · X01</span><span id="matchMode">501 · Double Out</span></div>
+          <div class="score-center"><p class="score-label">NOCH ZU WERFEN</p><div id="remainingScore" class="big-score">501</div><p id="scoreSubline" class="score-subline">Aufnahme 1 · Dart 1 von 3</p></div>
+          <div class="score-progress"><span id="scoreProgress"></span></div>
+          <div class="score-kpis">
+            <div><strong id="gameAvg">0,0</strong><small>3-DART-AVG</small></div>
+            <div><strong id="gameDarts">0</strong><small>DARTS</small></div>
+            <div><strong id="gameBest">–</strong><small>BESTE AUFNAHME</small></div>
           </div>
         </div>
-        <div class="turn-head"><div><p class="eyebrow">AKTUELLE AUFNAHME</p><h2 id="turnScore">0 <small>/ 180</small></h2></div><span class="dart-count" id="dartCount">0 / 3 DARTS</span></div>
-        <div class="dart-entry">
-          <div class="dart-tabs" id="dartTabs"><button class="selected">DART 1</button><button>DART 2</button><button>DART 3</button></div>
-          <div class="multiplier-row" id="multiplierRow"><button class="mult active" data-mult="1">S</button><button class="mult" data-mult="2">D</button><button class="mult" data-mult="3">T</button></div>
-          <div class="number-grid" id="numberGrid"></div>
-          <div class="special-row"><button data-special="25">25 · SB</button><button data-special="50">50 · DB</button><button data-special="0">MISS</button></div>
-          <p class="entry-hint" id="entryHint">Multiplikator wählen, dann Trefferfeld antippen.</p>
+
+        <div class="advisor panel" aria-live="polite">
+          <div class="advisor-top"><span class="eyebrow" id="adviceType">CHECKOUT-ASSISTENT</span><span id="adviceDarts" class="pill-outlined">3 Darts übrig</span></div>
+          <div class="advice-main"><div><h3 id="adviceHeading">Dein nächster Wurf</h3><p id="adviceText">Empfehlung wird berechnet.</p></div><span class="advisor-icon">↗</span></div>
+          <div id="adviceSteps" class="advice-steps"></div>
         </div>
-        <div class="turn-actions"><button class="secondary-btn" id="undoBtn">↶ Rückgängig</button><button class="primary-btn" id="finishVisitBtn" disabled>Aufnahme buchen <span>→</span></button></div>
-        <div class="last-visits"><div class="section-title"><h3>Letzte Aufnahmen</h3><span id="visitCount">0</span></div><div id="visitList" class="visit-list"><p class="empty">Noch keine Aufnahmen.</p></div></div>
-        <button class="text-danger" id="abandonBtn">Spiel abbrechen</button>
+
+        <div class="round-header">
+          <div><p class="eyebrow subtle">AKTUELLE AUFNAHME</p><h2>Deine Darts <span id="turnTotal" class="turn-total">0 Punkte</span></h2></div>
+          <span id="turnIndex" class="muted">1 / 3</span>
+        </div>
+        <div class="dart-slots" id="dartSlots" aria-live="polite"></div>
+        <div id="gamePad" class="keypad panel"></div>
+        <button class="attempt-toggle" id="attemptToggle" aria-pressed="false">
+          <span class="attempt-check" id="attemptCheck">○</span>
+          <span><strong>Diesen Dart als Checkout-Versuch markieren</strong><small>Auch bei einem Fehlwurf, z. B. auf Doppel 20</small></span>
+        </button>
+        <div class="action-row">
+          <button id="undoGame" class="secondary-btn"><span>↶</span> Letzten Dart zurück</button>
+          <button id="abandonGame" class="ghost-btn dangerous">Leg verwerfen</button>
+        </div>
+        <div class="section-header"><h3>Letzte Aufnahmen</h3><span id="visitCounter" class="muted">0 Aufnahmen</span></div>
+        <div id="visitList" class="visits-list"></div>
+      </div>
+
+      <div id="gameFinished" class="panel finish-panel" hidden>
+        <span class="finish-symbol">🏆</span>
+        <p class="eyebrow">CHECKOUT!</p><h2>Leg abgeschlossen.</h2>
+        <p class="subtitle">Deine Darts wurden im Profil gespeichert.</p>
+        <div class="finish-stat-row"><div><strong id="finishedAvg">0,0</strong><small>3-DART-AVG</small></div><div><strong id="finishedDarts">0</strong><small>DARTS</small></div><div><strong id="finishedCheckout">0</strong><small>CHECKOUT</small></div></div>
+        <button class="primary-btn wide" id="newLeg">Neues Leg spielen <span>→</span></button>
+        <button class="ghost-btn wide" id="goProfile">Statistiken ansehen</button>
+        <button class="ghost-btn wide" id="undoCheckout">Checkout rückgängig</button>
       </div>
     </section>
 
-    <section id="profileView" class="view">
-      <div class="page-heading"><div><p class="eyebrow">DEINE LEISTUNG</p><h1>Profil</h1></div><button class="icon-btn" id="exportBtn" aria-label="Daten exportieren">⇩</button></div>
-      <div class="profile-intro"><div class="avatar">🎯</div><div><h2>Dein Dart-Profil</h2><p>Deine persönliche Entwicklung auf einen Blick.</p></div></div>
-      <div class="stat-grid">
-        <div class="stat-tile"><span>SPIELE</span><strong id="totalGames">0</strong></div>
-        <div class="stat-tile"><span>3-DART-AVG</span><strong id="overallAvg">0.0</strong></div>
-        <div class="stat-tile"><span>BESTE AUFNAHME</span><strong id="overallBest">–</strong></div>
-        <div class="stat-tile"><span>CHECKOUTS</span><strong id="checkoutCount">0</strong></div>
+    <section id="trainingView" class="page" aria-label="Dart Training">
+      <div class="page-title"><div><p class="eyebrow">02 / PRACTICE</p><h1>Training<span class="accent-dot">.</span></h1><p class="subtitle">Präzision statt Zufall.</p></div><div class="title-emblem">◎</div></div>
+      <div id="trainingSetup" class="panel setup-panel">
+        <div class="panel-heading"><div><p class="eyebrow subtle">ZIELTRAINING</p><h2>Worauf möchtest du werfen?</h2></div><span class="mini-icon">↗</span></div>
+        <div class="two-fields">
+          <label class="field"><span>ZIELFELD</span><select id="targetSelect"></select></label>
+          <label class="field"><span>ANZAHL DARTS</span><select id="trainingGoal"><option>30</option><option>15</option><option>60</option><option>90</option><option>120</option></select></label>
+        </div>
+        <p class="caption training-note">Gib jeden Dart so ein, wie er tatsächlich gelandet ist. Auch Fehltreffer werden gezählt.</p>
+        <button id="startTraining" class="primary-btn wide">Training starten <span>→</span></button>
       </div>
-      <div class="panel"><div class="section-title"><h3>Average-Verlauf</h3><select id="periodSelect" class="small-select"><option value="all">Gesamt</option><option value="30">30 Tage</option><option value="7">7 Tage</option></select></div><div class="chart-wrap"><canvas id="averageChart" height="190"></canvas><p id="chartEmpty" class="empty">Spiele ein paar Matches, um deinen Verlauf zu sehen.</p></div></div>
-      <div class="panel"><div class="section-title"><h3>Getroffene Felder</h3><span class="muted">Alle Darts</span></div><div id="hitStats" class="hit-stats"><p class="empty">Noch keine Treffer erfasst.</p></div></div>
-      <div class="panel"><div class="section-title"><h3>Spielhistorie</h3><span id="historyCount" class="muted">0 Spiele</span></div><div id="historyList"><p class="empty">Abgeschlossene Spiele erscheinen hier.</p></div></div>
-      <div class="data-actions"><button class="secondary-btn" id="importBtn">Backup importieren</button><button class="text-danger" id="clearDataBtn">Alle Daten löschen</button><input type="file" id="importFile" accept="application/json" hidden></div>
-      <p class="privacy-note">Deine Daten bleiben auf diesem Gerät. Exportiere regelmäßig ein Backup, wenn du sie behalten möchtest.</p>
+      <div id="trainingActive" hidden>
+        <div class="training-hero panel">
+          <div class="training-hero-top"><span class="live-pill"><i></i> TRAINING</span><span id="trainingProgressText">0 / 30 Darts</span></div>
+          <p class="eyebrow subtle center">DEIN ZIEL</p><h2 id="targetLabel" class="target-label">T20</h2>
+          <div class="training-metrics"><div><strong id="trainingHits">0</strong><small>TREFFER</small></div><div><strong id="trainingRate">0 %</strong><small>TREFFERQUOTE</small></div></div>
+          <div class="training-progress"><span id="trainingProgress"></span></div>
+        </div>
+        <div class="round-header"><div><p class="eyebrow subtle">TREFFER ERFASSEN</p><h2>Wo landete der Dart?</h2></div></div>
+        <div id="trainingPad" class="keypad panel"></div>
+        <div class="action-row"><button id="undoTraining" class="secondary-btn">↶ Letzten Dart zurück</button><button id="endTraining" class="ghost-btn">Training beenden</button></div>
+        <p class="caption center">Das Training wird bei jedem Dart automatisch gespeichert.</p>
+      </div>
+      <div id="trainingFinished" class="panel finish-panel" hidden>
+        <span class="finish-symbol">🎯</span><p class="eyebrow">TRAINING ABGESCHLOSSEN</p>
+        <h2 id="trainingResultTitle">Dein Ergebnis</h2>
+        <p id="trainingResultDesc" class="subtitle"></p>
+        <button class="primary-btn wide" id="newTraining">Noch eine Runde <span>→</span></button>
+        <button class="ghost-btn wide" id="trainingToProfile">Auswertung ansehen</button>
+      </div>
+      <div class="section-header training-history-heading"><h3>Letzte Trainingseinheiten</h3></div>
+      <div id="trainingHistoryPreview"></div>
+    </section>
+
+    <section id="profileView" class="page" aria-label="Persönliche Dartstatistik">
+      <div class="page-title"><div><p class="eyebrow">03 / PERFORMANCE</p><h1>Dein Profil<span class="accent-dot">.</span></h1><p class="subtitle">Wissen, wo du besser wirst.</p></div><button id="exportData" class="export-btn" title="Backup herunterladen" aria-label="Backup herunterladen">⇩</button></div>
+      <div class="profile-banner"><div class="profile-avatar">🎯</div><div><h2>Dart Analytics</h2><p id="profileIntro">Dein Fortschritt beginnt mit dem ersten Dart.</p></div></div>
+
+      <div class="stat-grid">
+        <div class="stat-box"><small>GESPIELTE LEGS</small><strong id="statLegs">0</strong><span>Abgeschlossene X01-Spiele</span></div>
+        <div class="stat-box"><small>3-DART-AVERAGE</small><strong id="statAverage">0,0</strong><span>Über alle Legs</span></div>
+        <div class="stat-box"><small>FIRST 9 AVG</small><strong id="statFirst9">0,0</strong><span>Erste neun Darts je Leg</span></div>
+        <div class="stat-box"><small>CHECKOUT-QUOTE</small><strong id="statCheckoutRate">–</strong><span id="checkoutAttemptSummary">0 von 0 Versuchen</span></div>
+      </div>
+
+      <div class="panel chart-panel">
+        <div class="section-header compact"><div><p class="eyebrow subtle">ENTWICKLUNG</p><h3>Average-Verlauf</h3></div><select id="avgPeriod" class="mini-select"><option value="all">Gesamt</option><option value="30">30 Tage</option><option value="7">7 Tage</option></select></div>
+        <div id="averageChart" class="chart-holder"><p class="empty">Noch keine Legs abgeschlossen.</p></div>
+      </div>
+
+      <div class="panel chart-panel">
+        <div class="section-header compact"><div><p class="eyebrow subtle">LEISTUNG</p><h3>Hohe Aufnahmen</h3></div></div>
+        <div class="high-score-grid">
+          <div class="high-stat"><b id="stat180">0</b><span>180ER</span></div>
+          <div class="high-stat"><b id="stat140">0</b><span>140+</span></div>
+          <div class="high-stat"><b id="stat100">0</b><span>100+</span></div>
+          <div class="high-stat"><b id="statBestVisit">–</b><span>BESTE AUFNAHME</span></div>
+        </div>
+        <p class="caption">140+ und 100+ enthalten auch jeweils höhere Aufnahmen.</p>
+      </div>
+
+      <div class="panel">
+        <div class="section-header compact"><div><p class="eyebrow subtle">TREFFERVERTEILUNG</p><h3>Jedes einzelne Feld</h3></div><select id="hitSource" class="mini-select"><option value="all">Alles</option><option value="game">X01</option><option value="training">Training</option></select></div>
+        <div class="hit-controls"><button class="tiny-button selected" id="sortHitsCount">Nach Treffern</button><button class="tiny-button" id="sortHitsNumber">Nach Zahl</button></div>
+        <p id="hitTotal" class="caption"></p>
+        <div id="hitStats" class="hit-stat-list"><p class="empty">Noch keine Darts gespeichert.</p></div>
+      </div>
+
+      <div class="panel">
+        <div class="section-header compact"><div><p class="eyebrow subtle">PRO TAG</p><h3>Tagesstatistik</h3></div></div>
+        <div id="dailyStats"><p class="empty">Noch keine Tagesstatistik vorhanden.</p></div>
+      </div>
+
+      <div class="panel">
+        <div class="section-header compact"><div><p class="eyebrow subtle">FINISHING</p><h3>Checkout-Statistik</h3></div></div>
+        <div id="checkoutStats"><p class="empty">Noch keine Checkouts gespeichert.</p></div>
+      </div>
+
+      <div class="panel">
+        <div class="section-header compact"><div><p class="eyebrow subtle">VERLAUF</p><h3>Letzte Legs & Trainings</h3></div></div>
+        <div id="recentHistory"><p class="empty">Deine Ergebnisse erscheinen hier.</p></div>
+      </div>
+
+      <div class="panel backup-panel">
+        <div class="section-header compact"><div><p class="eyebrow subtle">DATENSICHERUNG</p><h3>Deine Daten gehören dir</h3></div></div>
+        <p class="caption">Alle Eingaben werden nur auf diesem Gerät gespeichert. Sichere sie regelmäßig als JSON-Datei. Ohne Backup können die Daten beim Löschen von Website-Daten verloren gehen.</p>
+        <div class="backup-actions"><button id="exportData2" class="secondary-btn">⇩ Backup exportieren</button><button id="importData" class="secondary-btn">⇧ Backup importieren</button></div>
+        <input type="file" id="importFile" accept=".json,application/json" hidden>
+        <button id="deleteAll" class="ghost-btn dangerous delete-button">Alle Daten löschen</button>
+      </div>
     </section>
   </main>
 
-  <nav class="bottom-nav"><button class="nav-item active" data-view="gameView"><span>◎</span>Spielen</button><button class="nav-item" data-view="profileView"><span>▥</span>Profil</button></nav>
-  <div id="toast" class="toast" role="status"></div>
+  <nav class="bottom-nav" aria-label="Hauptnavigation">
+    <button type="button" class="nav-btn active" data-page="gameView"><span class="nav-icon">◎</span><span>Spielen</span></button>
+    <button type="button" class="nav-btn" data-page="trainingView"><span class="nav-icon">◇</span><span>Training</span></button>
+    <button type="button" class="nav-btn" data-page="profileView"><span class="nav-icon">▥</span><span>Profil</span></button>
+  </nav>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <script src="app.js"></script>
 </body>
 </html>
